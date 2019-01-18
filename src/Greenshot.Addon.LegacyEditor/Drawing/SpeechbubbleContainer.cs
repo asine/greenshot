@@ -46,8 +46,8 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 	{
 		private NativePoint _initialGripperPoint;
 
-		public SpeechbubbleContainer(Surface parent)
-			: base(parent)
+		public SpeechbubbleContainer(Surface parent, IEditorConfiguration editorConfiguration)
+			: base(parent, editorConfiguration)
 		{
 		}
 
@@ -229,7 +229,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 			var lineVisible = lineThickness > 0 && Colors.IsVisible(lineColor);
 			var rect = new NativeRect(Left, Top, Width, Height).Normalize();
 
-            if (Selected && renderMode == RenderMode.EDIT)
+            if (Selected && renderMode == RenderMode.Edit)
 			{
 				DrawSelectionBorder(graphics, rect);
 			}

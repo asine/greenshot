@@ -24,47 +24,49 @@
 #region Usings
 
 using System.Collections.Generic;
-using Dapplo.Ini;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx.Effects;
 
 #endregion
 
 namespace Greenshot.Addons.Interfaces.Plugin
 {
+    /// <summary>
+    /// This contains the settings for outputting a surface
+    /// </summary>
 	public class SurfaceOutputSettings
 	{
-		private static readonly ICoreConfiguration CoreConfig = IniConfig.Current.Get<ICoreConfiguration>();
-		private bool _disableReduceColors;
+        private bool _disableReduceColors;
 		private bool _reduceColors;
 
-		public SurfaceOutputSettings()
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="fileConfiguration">IFileConfiguration</param>
+		public SurfaceOutputSettings(IFileConfiguration fileConfiguration)
 		{
 			_disableReduceColors = false;
-			Format = CoreConfig.OutputFileFormat;
-			JPGQuality = CoreConfig.OutputFileJpegQuality;
-			ReduceColors = CoreConfig.OutputFileReduceColors;
+			Format = fileConfiguration?.OutputFileFormat ?? OutputFormats.png;
+			JPGQuality = fileConfiguration?.OutputFileJpegQuality ?? 80;
+			ReduceColors = fileConfiguration?.OutputFileReduceColors ?? false;
 		}
 
-		public SurfaceOutputSettings(OutputFormats format) : this()
+		public SurfaceOutputSettings(IFileConfiguration fileConfiguration, OutputFormats format) : this(fileConfiguration)
 		{
 			Format = format;
 		}
 
-		public SurfaceOutputSettings(OutputFormats format, int quality) : this(format)
+		public SurfaceOutputSettings(IFileConfiguration fileConfiguration, OutputFormats format, int quality) : this(fileConfiguration, format)
 		{
 			JPGQuality = quality;
 		}
 
-		public SurfaceOutputSettings(OutputFormats format, int quality, bool reduceColors) : this(format, quality)
+		public SurfaceOutputSettings(IFileConfiguration fileConfiguration, OutputFormats format, int quality, bool reduceColors) : this(fileConfiguration, format, quality)
 		{
 			ReduceColors = reduceColors;
 		}
-
-	    public SurfaceOutputSettings(IFileConfiguration fileConfiguration) : this(fileConfiguration.OutputFileFormat, fileConfiguration.OutputFileJpegQuality, fileConfiguration.OutputFileReduceColors)
-	    {
-	    }
 
         public OutputFormats Format { get; set; }
 

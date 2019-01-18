@@ -29,10 +29,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Log;
-using Greenshot.Addons.Core.Enums;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Core.Enums;
 
 #endregion
 
@@ -53,14 +53,17 @@ namespace Greenshot.Addons.Core
 		private static readonly Regex CmdVarRegexp = new Regex(@"%(?<variable>[^%]+)%", RegexOptions.Compiled);
 
 		private static readonly Regex SplitRegexp = new Regex(";(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", RegexOptions.Compiled);
-		private static readonly ICoreConfiguration CoreConfig = IniConfig.Current.Get<ICoreConfiguration>();
+        /// <summary>
+        /// Set from DI via AddonsModule
+        /// </summary>
+        internal static ICoreConfiguration CoreConfiguration { get; set; }
 
-		/// <summary>
-		///     Remove invalid characters from the fully qualified filename
-		/// </summary>
-		/// <param name="fullPath">string with the full path to a file</param>
-		/// <returns>string with the full path to a file, without invalid characters</returns>
-		public static string MakeFqFilenameSafe(string fullPath)
+        /// <summary>
+        ///     Remove invalid characters from the fully qualified filename
+        /// </summary>
+        /// <param name="fullPath">string with the full path to a file</param>
+        /// <returns>string with the full path to a file, without invalid characters</returns>
+        public static string MakeFqFilenameSafe(string fullPath)
 		{
 			var path = MakePathSafe(Path.GetDirectoryName(fullPath));
 			var filename = MakeFilenameSafe(Path.GetFileName(fullPath));
@@ -133,7 +136,7 @@ namespace Greenshot.Addons.Core
 		/// <returns>The filename which should be used to save the image</returns>
 		public static string GetFilename(OutputFormats format, ICaptureDetails captureDetails)
 		{
-			var pattern = CoreConfig.OutputFileFilenamePattern;
+			var pattern = CoreConfiguration.OutputFileFilenamePattern;
 			if (string.IsNullOrEmpty(pattern?.Trim()))
 			{
 				pattern = "greenshot ${capturetime}";
@@ -394,8 +397,8 @@ namespace Greenshot.Addons.Core
 						}
 						break;
 					case "NUM":
-						CoreConfig.OutputFileIncrementingNumber++;
-						replaceValue = CoreConfig.OutputFileIncrementingNumber.ToString();
+						CoreConfiguration.OutputFileIncrementingNumber++;
+						replaceValue = CoreConfiguration.OutputFileIncrementingNumber.ToString();
 						if (padWidth == 0)
 						{
 							padWidth = -6;

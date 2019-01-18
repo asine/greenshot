@@ -29,6 +29,7 @@ using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -42,19 +43,22 @@ namespace Greenshot.Destinations
     public class FileWithDialogDestination : AbstractDestination
 	{
 	    private readonly IGreenshotLanguage _greenshotLanguage;
+	    private readonly ExportNotification _exportNotification;
 
 	    public FileWithDialogDestination(ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage
-	    ) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification
+        ) : base(coreConfiguration, greenshotLanguage)
 	    {
 	        _greenshotLanguage = greenshotLanguage;
+	        _exportNotification = exportNotification;
 	    }
 
         public override string Description => _greenshotLanguage.SettingsDestinationFileas;
 
 	    public override Keys EditorShortcutKeys => Keys.Control | Keys.Shift | Keys.S;
 
-	    public override Bitmap DisplayIcon => GreenshotResources.GetBitmap("Save.Image");
+	    public override Bitmap DisplayIcon => GreenshotResources.Instance.GetBitmap("Save.Image");
 
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
@@ -68,8 +72,8 @@ namespace Greenshot.Destinations
 				captureDetails.Filename = savedTo;
 			    CoreConfiguration.OutputFileAsFullpath = savedTo;
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 	}
 }

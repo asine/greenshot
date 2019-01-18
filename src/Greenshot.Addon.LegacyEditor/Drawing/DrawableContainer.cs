@@ -30,10 +30,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.Serialization;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Log;
 using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
+using Greenshot.Addon.LegacyEditor.Configuration.Impl;
 using Greenshot.Addon.LegacyEditor.Drawing.Adorners;
 using Greenshot.Addon.LegacyEditor.Drawing.Fields;
 using Greenshot.Addon.LegacyEditor.Drawing.Filters;
@@ -59,7 +59,6 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 		private const int M11 = 0;
 		private const int M22 = 3;
 		private static readonly LogSource Log = new LogSource();
-		protected static readonly IEditorConfiguration EditorConfig = IniConfig.Current.Get<IEditorConfiguration>();
 
 		/// <summary>
 		///     List of available Adorners
@@ -97,7 +96,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 
 		private int width;
 
-		public DrawableContainer(Surface parent)
+		public DrawableContainer(Surface parent, IEditorConfiguration editorConfiguration) : base(editorConfiguration)
 		{
 			InitializeFields();
 			_parent = parent;
@@ -624,7 +623,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 		}
 
 		/// <summary>
-		///     This method will be called before a field is changes.
+		///     This method will be called before a field changes.
 		///     Using this makes it possible to invalidate the object as is before changing.
 		/// </summary>
 		/// <param name="fieldToBeChanged">The field to be changed</param>

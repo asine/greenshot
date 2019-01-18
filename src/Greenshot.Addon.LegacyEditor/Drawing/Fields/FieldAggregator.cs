@@ -27,7 +27,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using Dapplo.Ini;
+using Greenshot.Addon.LegacyEditor.Configuration.Impl;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Drawing;
 
@@ -49,12 +49,10 @@ namespace Greenshot.Addon.LegacyEditor.Drawing.Fields
 	[Serializable]
 	public sealed class FieldAggregator : AbstractFieldHolder
 	{
-		private static readonly IEditorConfiguration EditorConfig = IniConfig.Current.Get<IEditorConfiguration>();
-
 		private readonly IDrawableContainerList _boundContainers;
 		private bool _internalUpdateRunning;
 
-		public FieldAggregator(ISurface parent)
+		public FieldAggregator(ISurface parent, IEditorConfiguration editorConfiguration) : base(editorConfiguration) 
 		{
 			foreach (var fieldType in FieldTypes.Values)
 			{
@@ -224,7 +222,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing.Fields
 
 				drawableContainerField.Value = field.Value;
 				// update last used from DC field, so that scope is honored
-				EditorConfig.UpdateLastFieldValue(drawableContainerField);
+				_editorConfiguration.UpdateLastFieldValue(drawableContainerField);
 			}
 		}
 	}

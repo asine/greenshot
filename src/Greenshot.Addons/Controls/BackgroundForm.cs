@@ -27,7 +27,7 @@ using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
-using Greenshot.Addons.Core;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -46,7 +46,7 @@ namespace Greenshot.Addons.Controls
 			// The InitializeComponent() call is required for Windows Forms designer support.
 			//
 			InitializeComponent();
-			Icon = GreenshotResources.GetGreenshotIcon();
+			Icon = GreenshotResources.Instance.GetGreenshotIcon();
 			_shouldClose = false;
 			Text = title;
 			label_pleasewait.Text = text;

@@ -28,6 +28,7 @@ using Autofac.Features.OwnedInstances;
 using Dapplo.Addons;
 using Dapplo.Log;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.Lutim.Configuration;
 using Greenshot.Addon.Lutim.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
@@ -49,7 +50,8 @@ namespace Greenshot.Addon.Lutim  {
         private readonly ILutimLanguage _lutimLanguage;
         private readonly LutimApi _lutimApi;
         private readonly IResourceProvider _resourceProvider;
-        private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+        private readonly ExportNotification _exportNotification;
+        private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
 
         public LutimDestination(ILutimConfiguration lutimConfiguration,
             ILutimLanguage lutimLanguage,
@@ -57,13 +59,15 @@ namespace Greenshot.Addon.Lutim  {
             IResourceProvider resourceProvider,
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
+            ExportNotification exportNotification,
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
         ) : base(coreConfiguration, greenshotLanguage)
         {
             _lutimConfiguration = lutimConfiguration;
             _lutimLanguage = lutimLanguage;
             _lutimApi = lutimApi;
             _resourceProvider = resourceProvider;
+            _exportNotification = exportNotification;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
         }
 
@@ -88,8 +92,8 @@ namespace Greenshot.Addon.Lutim  {
 		        ExportMade = uploadUrl != null,
 		        Uri = uploadUrl
 		    };
-		    ProcessExport(exportInformation, surface);
-			return exportInformation;
+            _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 
 
@@ -106,8 +110,9 @@ namespace Greenshot.Addon.Lutim  {
                 LutimInfo lutimInfo;
 
                 var cancellationTokenSource = new CancellationTokenSource();
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("Lutim", _lutimLanguage.CommunicationWait, cancellationTokenSource))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(cancellationTokenSource))
                 {
+                    ownedPleaseWaitForm.Value.SetDetails("Lutim", _lutimLanguage.CommunicationWait);
                     ownedPleaseWaitForm.Value.Show();
                     try
                     {

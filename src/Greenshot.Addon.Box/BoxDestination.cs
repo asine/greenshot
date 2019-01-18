@@ -39,6 +39,7 @@ using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.Box.Configuration;
 using Greenshot.Addon.Box.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
@@ -56,10 +57,11 @@ namespace Greenshot.Addon.Box
     public class BoxDestination : AbstractDestination
 	{
 	    private static readonly LogSource Log = new LogSource();
-        private readonly IBoxConfiguration _boxConfiguration;
+	    private readonly ExportNotification _exportNotification;
+	    private readonly IBoxConfiguration _boxConfiguration;
 	    private readonly IBoxLanguage _boxLanguage;
-	    private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
-	    private readonly INetworkConfiguration _networkConfiguration;
+	    private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+	    private readonly IHttpConfiguration _httpConfiguration;
 	    private readonly IResourceProvider _resourceProvider;
 	    private readonly OAuth2Settings _oauth2Settings;
         private static readonly Uri UploadFileUri = new Uri("https://upload.box.com/api/2.0/files/content");
@@ -68,16 +70,18 @@ namespace Greenshot.Addon.Box
 		public BoxDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
             IBoxConfiguration boxConfiguration,
             IBoxLanguage boxLanguage,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
-            INetworkConfiguration networkConfiguration,
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
+            IHttpConfiguration httpConfiguration,
             IResourceProvider resourceProvider) : base(coreConfiguration, greenshotLanguage)
-	    {
+        {
+	        _exportNotification = exportNotification;
 	        _boxConfiguration = boxConfiguration;
 	        _boxLanguage = boxLanguage;
 	        _pleaseWaitFormFactory = pleaseWaitFormFactory;
-	        _networkConfiguration = networkConfiguration;
+	        _httpConfiguration = httpConfiguration;
 	        _resourceProvider = resourceProvider;
 
 	        _oauth2Settings = new OAuth2Settings
@@ -124,7 +128,7 @@ namespace Greenshot.Addon.Box
 				exportInformation.ExportMade = true;
 				exportInformation.Uri = uploadUrl;
 			}
-			ProcessExport(exportInformation, surface);
+            _exportNotification.NotifyOfExport(this, exportInformation, surface);
 			return exportInformation;
 		}
 
@@ -136,9 +140,10 @@ namespace Greenshot.Addon.Box
 	        try
 	        {
 	            string url;
-	            using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("Box", _boxLanguage.CommunicationWait, default))
+	            using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(default))
 	            {
-	                ownedPleaseWaitForm.Value.Show();
+	                ownedPleaseWaitForm.Value.SetDetails("Box", _boxLanguage.CommunicationWait);
+                    ownedPleaseWaitForm.Value.Show();
 	                try
 	                {
 	                    url = await UploadToBoxAsync(surfaceToUpload).ConfigureAwait(true);
@@ -183,7 +188,7 @@ namespace Greenshot.Addon.Box
 
             var oauthHttpBehaviour = HttpBehaviour.Current.ShallowClone();
             // Use the network settings
-            oauthHttpBehaviour.HttpSettings = _networkConfiguration;
+            oauthHttpBehaviour.HttpSettings = _httpConfiguration;
             // Use UploadProgress
             if (progress != null)
             {

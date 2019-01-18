@@ -48,7 +48,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing.Filters
 
 		[NonSerialized] private PropertyChangedEventHandler propertyChanged;
 
-		public AbstractFilter(DrawableContainer parent)
+		public AbstractFilter(DrawableContainer parent, IEditorConfiguration editorConfiguration) : base(editorConfiguration)
 		{
 			this.parent = parent;
 		}
@@ -73,11 +73,6 @@ namespace Greenshot.Addon.LegacyEditor.Drawing.Filters
 		{
 			get { return parent; }
 			set { parent = value; }
-		}
-
-		public DrawableContainer GetParent()
-		{
-			return parent;
 		}
 
 		public abstract void Apply(Graphics graphics, Bitmap applyBitmap, NativeRect rect, RenderMode renderMode);

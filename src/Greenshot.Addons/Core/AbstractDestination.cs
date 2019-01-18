@@ -37,9 +37,11 @@ using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.Dpi;
 using Dapplo.Windows.Dpi.Forms;
 using Dapplo.Windows.Extensions;
+using Dapplo.Windows.User32;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Extensions;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Addons.Resources;
 using Greenshot.Gfx;
 
 #endregion
@@ -56,7 +58,9 @@ namespace Greenshot.Addons.Core
         protected IGreenshotLanguage GreenshotLanguage { get; }
         protected ICoreConfiguration CoreConfiguration { get; }
 
-        protected AbstractDestination(ICoreConfiguration coreConfiguration, IGreenshotLanguage greenshotLanguage)
+        protected AbstractDestination(
+            ICoreConfiguration coreConfiguration,
+            IGreenshotLanguage greenshotLanguage)
         {
             CoreConfiguration = coreConfiguration;
             GreenshotLanguage = greenshotLanguage;
@@ -91,7 +95,7 @@ namespace Greenshot.Addons.Core
         /// <returns>Task</returns>
         protected virtual Task PrepareDynamicDestinations(ToolStripMenuItem destinationToolStripMenuItem)
         {
-            return Task.FromResult(true);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -110,7 +114,7 @@ namespace Greenshot.Addons.Core
         /// <returns>Task</returns>
         protected virtual Task AfterDynamicDestinations(ToolStripMenuItem destinationToolStripMenuItem)
         {
-            return Task.FromResult(true);
+            return Task.CompletedTask;
         }
 
         public void Dispose()
@@ -144,7 +148,8 @@ namespace Greenshot.Addons.Core
         /// <returns></returns>
         public virtual Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
         {
-            return Task.FromResult(ExportCapture(manuallyInitiated, surface, captureDetails));
+            var syncResult = ExportCapture(manuallyInitiated, surface, captureDetails);
+            return Task.FromResult(syncResult);
         }
 
         /// <summary>
@@ -231,38 +236,6 @@ namespace Greenshot.Addons.Core
             //if (disposing) {}
         }
 
-        /// <summary>
-        ///     A small helper method to perform some default destination actions, like inform the surface of the export
-        /// </summary>
-        /// <param name="exportInformation"></param>
-        /// <param name="surface"></param>
-        public void ProcessExport(ExportInformation exportInformation, ISurface surface)
-        {
-            if (exportInformation != null && exportInformation.ExportMade)
-            {
-                if (!string.IsNullOrEmpty(exportInformation.Uri))
-                {
-                    surface.UploadUrl = exportInformation.Uri;
-                    surface.SendMessageEvent(this, SurfaceMessageTyp.UploadedUri, string.Format(GreenshotLanguage.ExportedTo, exportInformation.DestinationDescription));
-                }
-                else if (!string.IsNullOrEmpty(exportInformation.Filepath))
-                {
-                    surface.LastSaveFullPath = exportInformation.Filepath;
-                    surface.SendMessageEvent(this, SurfaceMessageTyp.FileSaved, string.Format(GreenshotLanguage.ExportedTo, exportInformation.DestinationDescription));
-                }
-                else
-                {
-                    surface.SendMessageEvent(this, SurfaceMessageTyp.Info, string.Format(GreenshotLanguage.ExportedTo, exportInformation.DestinationDescription));
-                }
-                surface.Modified = false;
-            }
-            else if (!string.IsNullOrEmpty(exportInformation?.ErrorMessage))
-            {
-                surface.SendMessageEvent(this, SurfaceMessageTyp.Error,
-                    string.Format(GreenshotLanguage.ExportedTo, exportInformation.DestinationDescription) + " " + exportInformation.ErrorMessage);
-            }
-        }
-
         public override string ToString()
         {
             return Description;
@@ -276,18 +249,26 @@ namespace Greenshot.Addons.Core
         /// <param name="tagValue">Value for the tag</param>
         private void AddTagEvents(ToolStripMenuItem menuItem, ContextMenuStrip menu, string tagValue)
         {
-            if (menuItem == null || menu == null)
+            if (menuItem == null || menu == null || menu.IsDisposed)
             {
                 return;
             }
 
             menuItem.MouseDown += (sender, args) =>
             {
+                if (!menu.IsAccessible || menu.IsDisposed)
+                {
+                    return;
+                }
                 Log.Debug().WriteLine("Setting tag to '{0}'", tagValue);
                 menu.Tag = tagValue;
             };
             menuItem.MouseUp += (sender, args) =>
             {
+                if (!menu.IsAccessible || menu.IsDisposed)
+                {
+                    return;
+                }
                 Log.Debug().WriteLine("Deleting tag");
                 menu.Tag = null;
             };
@@ -314,11 +295,9 @@ namespace Greenshot.Addons.Core
                 (destination, dpi) => destination.GetDisplayIcon(dpi),
                 (bitmap, d) => bitmap.ScaleIconForDisplaying(d));
 
-            dpiHandler.OnDpiChanged.Subscribe(dpi =>
+            dpiHandler.OnDpiChanged.Subscribe(dpiChangeInfo =>
             {
-                var width = DpiHandler.ScaleWithDpi(CoreConfiguration.IconSize.Width, dpi);
-                var size = new Size(width, width);
-                menu.ImageScalingSize = size;
+                menu.ImageScalingSize = DpiHandler.ScaleWithDpi(CoreConfiguration.IconSize, dpiChangeInfo.NewDpi);
             });
 
             // Generate an empty ExportInformation object, for when nothing was selected.
@@ -378,7 +357,7 @@ namespace Greenshot.Addons.Core
                         }
                         menu.Tag = clickedDestination.Designation;
                         // Export
-                        exportInformation = await clickedDestination.ExportCaptureAsync(true, surface, captureDetails);
+                        exportInformation = await clickedDestination.ExportCaptureAsync(true, surface, captureDetails).ConfigureAwait(true);
                         if (exportInformation != null && exportInformation.ExportMade)
                         {
                             Log.Info().WriteLine("Export to {0} success, closing menu", exportInformation.DestinationDescription);
@@ -413,7 +392,7 @@ namespace Greenshot.Addons.Core
             menu.Items.Add(new ToolStripSeparator());
             var closeItem = new ToolStripMenuItem(GreenshotLanguage.ContextmenuExit)
             {
-                Image = GreenshotResources.GetBitmap("Close.Image")
+                Image = GreenshotResources.Instance.GetBitmap("Close.Image")
             };
             closeItem.Click += (sender, args) =>
             {
@@ -439,12 +418,12 @@ namespace Greenshot.Addons.Core
         ///     This method will show the supplied context menu at the mouse cursor, also makes sure it has focus and it's not
         ///     visible in the taskbar.
         /// </summary>
-        /// <param name="menu"></param>
+        /// <param name="menu">ContextMenuStrip</param>
         private static void ShowMenuAtCursor(ContextMenuStrip menu)
         {
             // find a suitable location
             var location = Cursor.Position;
-            var menuRectangle = new NativeRect(location, menu.Size).Intersect(WindowCapture.GetScreenBounds());
+            var menuRectangle = new NativeRect(location, menu.Size).Intersect(DisplayInfo.ScreenBounds);
             if (menuRectangle.Height < menu.Height)
             {
                 location.Offset(-40, -(menuRectangle.Height - menu.Height));

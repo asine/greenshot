@@ -36,11 +36,12 @@ using Greenshot.Addon.Win10.Native;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx;
 using Color = Windows.UI.Color;
+using Greenshot.Addons.Resources;
 
 namespace Greenshot.Addon.Win10
 {
@@ -50,15 +51,25 @@ namespace Greenshot.Addon.Win10
     [Destination("WIN10Share")]
     public class Win10ShareDestination : AbstractDestination
 	{
+	    private readonly ExportNotification _exportNotification;
 	    private static readonly LogSource Log = new LogSource();
 
+        /// <summary>
+        /// Default constructor used for dependency injection
+        /// </summary>
+        /// <param name="coreConfiguration">ICoreConfiguration</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="exportNotification">ExportNotification</param>
 	    public Win10ShareDestination(
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification) : base(coreConfiguration, greenshotLanguage)
 	    {
+	        _exportNotification = exportNotification;
 	    }
 
-	    public override string Description { get; } = "Windows 10 share";
+        /// <inheritdoc />
+        public override string Description { get; } = "Windows 10 share";
 
 		/// <summary>
 		/// Icon for the App-share, the icon was found via: http://help4windows.com/windows_8_shell32_dll.shtml
@@ -75,19 +86,20 @@ namespace Greenshot.Addon.Win10
 	        public bool IsDestroyed { get; set; }
 	        public bool IsShareCompleted { get; set; }
 
-            public TaskCompletionSource<bool> ShareTask { get; } = new TaskCompletionSource<bool>();
+            public TaskCompletionSource<bool> ShareTask { get; } = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 	        public bool IsDataRequested { get; set; }
 	    }
-		/// <summary>
-		/// Share the screenshot with a windows app
-		/// </summary>
-		/// <param name="manuallyInitiated"></param>
-		/// <param name="surface"></param>
-		/// <param name="captureDetails"></param>
-		/// <returns>ExportInformation</returns>
-		protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
-		{
-			var exportInformation = new ExportInformation(Designation, Description);
+
+        /// <summary>
+        /// Share the screenshot with a windows app
+        /// </summary>
+        /// <param name="manuallyInitiated"></param>
+        /// <param name="surface"></param>
+        /// <param name="captureDetails"></param>
+        /// <returns>ExportInformation</returns>
+        public override async Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
+        {
+            var exportInformation = new ExportInformation(Designation, Description);
 			try
 			{
                 var triggerWindow = new Window
@@ -116,7 +128,7 @@ namespace Greenshot.Addon.Win10
                     });
                 var windowHandle = new WindowInteropHelper(triggerWindow).Handle;
 
-			    Share(shareInfo, windowHandle, surface, captureDetails).Wait();
+			    await Share(shareInfo, windowHandle, surface, captureDetails);
 			    Log.Debug().WriteLine("Sharing finished, closing window.");
 			    triggerWindow.Close();
 			    if (string.IsNullOrWhiteSpace(shareInfo.ApplicationName))
@@ -135,7 +147,7 @@ namespace Greenshot.Addon.Win10
 				exportInformation.ErrorMessage = ex.Message;
 			}
 
-			ProcessExport(exportInformation, surface);
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
 			return exportInformation;
 
 		}
@@ -150,12 +162,11 @@ namespace Greenshot.Addon.Win10
 	    /// <returns>Task with string, which describes the application which was used to share with</returns>
 	    private async Task Share(ShareInfo shareInfo, IntPtr handle, ISurface surface, ICaptureDetails captureDetails)
 	    {
-
             using (var imageStream = new MemoryRandomAccessStream())
             using (var logoStream = new MemoryRandomAccessStream())
             using (var thumbnailStream = new MemoryRandomAccessStream())
             {
-                var outputSettings = new SurfaceOutputSettings();
+                var outputSettings = new SurfaceOutputSettings(CoreConfiguration);
                 outputSettings.PreventGreenshotFormat();
 
                 // Create capture for export
@@ -177,7 +188,7 @@ namespace Greenshot.Addon.Win10
 
                 // Create logo
                 RandomAccessStreamReference logoRandomAccessStreamReference;
-                using (var logo = GreenshotResources.GetGreenshotIcon().ToBitmap())
+                using (var logo = GreenshotResources.Instance.GetGreenshotIcon().ToBitmap())
                 using (var logoThumbnail = logo.CreateThumbnail(30, 30))
                 {
                     ImageOutput.SaveToStream(logoThumbnail, null, logoStream, outputSettings);
@@ -212,6 +223,8 @@ namespace Greenshot.Addon.Win10
                         }
                         // Signal that the stream is ready
                         streamedFileDataRequest.Dispose();
+                        // Signal that the action is ready, bitmap was exported
+                        shareInfo.ShareTask.TrySetResult(true);
                     }
                     catch (Exception)
                     {

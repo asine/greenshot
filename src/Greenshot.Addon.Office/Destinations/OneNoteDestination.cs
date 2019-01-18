@@ -31,7 +31,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Dapplo.Log;
 using Greenshot.Addon.Office.OfficeExport;
-using Greenshot.Addon.Office.OfficeInterop;
+using Greenshot.Addon.Office.OfficeExport.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
@@ -41,34 +41,59 @@ using Greenshot.Addons.Interfaces;
 
 namespace Greenshot.Addon.Office.Destinations
 {
+    /// <summary>
+    /// This is the OneNote destination, taking care of exporting
+    /// </summary>
     [Destination("OneNote", DestinationOrder.OneNote)]
     public class OneNoteDestination : AbstractDestination
 	{
-		private const int IconApplication = 0;
+        private readonly OneNoteExporter _oneNoteExporter;
+        private readonly ExportNotification _exportNotification;
+	    private const int IconApplication = 0;
 		private static readonly LogSource Log = new LogSource();
 		private readonly string _exePath;
 		private readonly OneNotePage _page;
 
+        /// <summary>
+        /// Constructor used for dependency wiring
+        /// </summary>
+        /// <param name="coreConfiguration">ICoreConfiguration</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="exportNotification">ExportNotification</param>
 		public OneNoteDestination(
+            OneNoteExporter oneNoteExporter,
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage
-	    ) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification
+        ) : base(coreConfiguration, greenshotLanguage)
         {
-		    _exePath = PluginUtils.GetExePath("ONENOTE.EXE");
+            this._oneNoteExporter = oneNoteExporter;
+            _exportNotification = exportNotification;
+            _exePath = PluginUtils.GetExePath("ONENOTE.EXE");
 		    if (_exePath != null && !File.Exists(_exePath))
 		    {
 		        _exePath = null;
 		    }
         }
 
-		protected OneNoteDestination(OneNotePage page,
+        /// <summary>
+        /// Constructor used for dependency wiring, and being able to specify a page
+        /// </summary>
+        /// <param name="page">OneNotePage</param>
+        /// <param name="coreConfiguration">ICoreConfiguration</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="exportNotification">ExportNotification</param>
+        protected OneNoteDestination(OneNoteExporter oneNoteExporter,
+            OneNotePage page,
 		    ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage
-	    ) : this(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+		    ExportNotification exportNotification
+        ) : this(oneNoteExporter, coreConfiguration, greenshotLanguage, exportNotification)
         {
 			_page = page;
 		}
 
+        /// <inherit />
 	    public override string Description
 		{
 			get
@@ -81,20 +106,24 @@ namespace Greenshot.Addon.Office.Destinations
 			}
 		}
 
+        /// <inherit />
 		public override bool IsDynamic => true;
 
+        /// <inherit />
 		public override bool IsActive => base.IsActive && _exePath != null;
 
+        /// <inherit />
 		public override Bitmap GetDisplayIcon(double dpi)
 		{
 			return PluginUtils.GetCachedExeIcon(_exePath, IconApplication, dpi > 100);
 		}
 
+        /// <inherit />
 		public override IEnumerable<IDestination> DynamicDestinations()
 		{
 			try
 			{
-				return OneNoteExporter.GetPages().Where(currentPage => currentPage.IsCurrentlyViewed).Select(currentPage => new OneNoteDestination(currentPage, CoreConfiguration, GreenshotLanguage));
+				return _oneNoteExporter.GetPages().Where(currentPage => currentPage.IsCurrentlyViewed).Select(currentPage => new OneNoteDestination(_oneNoteExporter, currentPage, CoreConfiguration, GreenshotLanguage, _exportNotification));
 			}
 			catch (COMException cEx)
 			{
@@ -111,6 +140,7 @@ namespace Greenshot.Addon.Office.Destinations
 			return Enumerable.Empty<IDestination>();
 		}
 
+        /// <inherit />
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
 			var exportInformation = new ExportInformation(Designation, Description);
@@ -119,7 +149,7 @@ namespace Greenshot.Addon.Office.Destinations
 			{
 				try
 				{
-					exportInformation.ExportMade = OneNoteExporter.ExportToNewPage(surface);
+					exportInformation.ExportMade = _oneNoteExporter.ExportToNewPage(surface);
 				}
 				catch (Exception ex)
 				{
@@ -131,7 +161,7 @@ namespace Greenshot.Addon.Office.Destinations
 			{
 				try
 				{
-					exportInformation.ExportMade = OneNoteExporter.ExportToPage(surface, _page);
+					exportInformation.ExportMade = _oneNoteExporter.ExportToPage(surface, _page);
 				}
 				catch (Exception ex)
 				{
@@ -139,7 +169,8 @@ namespace Greenshot.Addon.Office.Destinations
 					Log.Error().WriteLine(ex);
 				}
 			}
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 	}
 }

@@ -48,7 +48,7 @@ namespace Greenshot.Destinations
 	        DestinationHolder destinationHolder,
             ICoreConfiguration coreConfiguration,
 	        IGreenshotLanguage greenshotLanguage
-	        ) : base(coreConfiguration, greenshotLanguage)
+            ) : base(coreConfiguration, greenshotLanguage)
         {
             _destinationHolder = destinationHolder;
         }

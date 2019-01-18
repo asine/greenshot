@@ -26,15 +26,16 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.Desktop;
 using Dapplo.Windows.DesktopWindowsManager;
+using Dapplo.Windows.DesktopWindowsManager.Structs;
 using Dapplo.Windows.User32;
 using Dapplo.Windows.User32.Enums;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
+using Greenshot.Core.Enums;
 
 #endregion
 
@@ -47,19 +48,20 @@ namespace Greenshot.Addons.Controls
 	/// </summary>
 	public sealed class ThumbnailForm : FormWithoutActivation
 	{
-		private static readonly ICoreConfiguration conf = IniConfig.Current.Get<ICoreConfiguration>();
+        private IntPtr _thumbnailHandle = IntPtr.Zero;
 
-		private IntPtr _thumbnailHandle = IntPtr.Zero;
-
-		public ThumbnailForm()
+        /// <summary>
+        /// Constructor for the Thumbnail form
+        /// </summary>
+		public ThumbnailForm(ICoreConfiguration coreConfiguration)
 		{
-			ShowInTaskbar = false;
+            ShowInTaskbar = false;
 			FormBorderStyle = FormBorderStyle.None;
 			TopMost = false;
 			Enabled = false;
-			if (conf.WindowCaptureMode == WindowCaptureModes.Auto || conf.WindowCaptureMode == WindowCaptureModes.Aero)
+			if (coreConfiguration.WindowCaptureMode == WindowCaptureModes.Auto || coreConfiguration.WindowCaptureMode == WindowCaptureModes.Aero)
 			{
-				BackColor = Color.FromArgb(255, conf.DWMBackgroundColor.R, conf.DWMBackgroundColor.G, conf.DWMBackgroundColor.B);
+				BackColor = Color.FromArgb(255, coreConfiguration.DWMBackgroundColor.R, coreConfiguration.DWMBackgroundColor.G, coreConfiguration.DWMBackgroundColor.B);
 			}
 			else
 			{
@@ -137,9 +139,13 @@ namespace Greenshot.Addons.Controls
 		    }
 		}
 
+        /// <summary>
+        /// Aligns the thumbnail form to the specified control
+        /// </summary>
+        /// <param name="alignTo"></param>
 		public void AlignToControl(Control alignTo)
 		{
-			var screenBounds = WindowCapture.GetScreenBounds();
+			var screenBounds = DisplayInfo.ScreenBounds;
 			if (screenBounds.Contains(alignTo.Left, alignTo.Top - Height))
 			{
 				Location = new Point(alignTo.Left + alignTo.Width / 2 - Width / 2, alignTo.Top - Height);

@@ -29,11 +29,14 @@ using Greenshot.Addons;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Extensions;
-using Greenshot.Addons.Interfaces;
 using Greenshot.Configuration;
+using Greenshot.Core.Enums;
 
 namespace Greenshot.Ui.Configuration.ViewModels
 {
+    /// <summary>
+    /// Configuration for the capture
+    /// </summary>
     public sealed class CaptureConfigViewModel : SimpleConfigScreen
     {
         /// <summary>

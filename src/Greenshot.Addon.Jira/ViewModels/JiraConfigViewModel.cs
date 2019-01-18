@@ -24,7 +24,8 @@
 using System.Reactive.Disposables;
 using Dapplo.CaliburnMicro.Configuration;
 using Dapplo.CaliburnMicro.Extensions;
-using Greenshot.Addons.Core;
+using Greenshot.Addon.Jira.Configuration;
+using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.ViewModels;
 
 namespace Greenshot.Addon.Jira.ViewModels

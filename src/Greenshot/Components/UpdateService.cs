@@ -30,50 +30,49 @@ using System.ServiceModel.Syndication;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+using Autofac.Features.OwnedInstances;
+using Caliburn.Micro;
 using Dapplo.Addons;
 using Dapplo.CaliburnMicro;
 using Dapplo.HttpExtensions;
 using Dapplo.Log;
-using Dapplo.Utils;
-using Greenshot.Addons;
 using Greenshot.Addons.Core;
-using Greenshot.Forms;
+using Greenshot.Ui.Notifications.ViewModels;
 
 #endregion
 
 namespace Greenshot.Components
 {
-	/// <summary>
-	///     This processes the information, if there are updates available.
-	/// </summary>
-	[ServiceOrder(GreenshotStartupOrder.User)]
-	public class UpdateService : IStartup, IShutdown, IVersionProvider
-	{
-	    private static readonly LogSource Log = new LogSource();
+    /// <summary>
+    ///     This processes the information, if there are updates available.
+    /// </summary>
+    [Service(nameof(UpdateService), nameof(MainFormStartup))]
+    public class UpdateService : IStartup, IShutdown, IVersionProvider
+    {
+        private static readonly LogSource Log = new LogSource();
         private static readonly Regex VersionRegex = new Regex(@"^.*[^-]-(?<version>[0-9\.]+)\-(?<type>(release|beta|rc[0-9]+))\.exe.*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-		private const string StableDownloadLink = "https://getgreenshot.org/downloads/";
-		private static readonly Uri UpdateFeed = new Uri("http://getgreenshot.org/project-feed/");
+        private static readonly Uri UpdateFeed = new Uri("http://getgreenshot.org/project-feed/");
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         private readonly ICoreConfiguration _coreConfiguration;
-	    private readonly IGreenshotLanguage _greenshotLanguage;
+        private readonly IEventAggregator _eventAggregator;
+        private readonly Func<Version, Owned<UpdateNotificationViewModel>> _updateNotificationViewModelFactory;
 
-	    /// <inheritdoc />
-	    public Version CurrentVersion { get; }
+        /// <inheritdoc />
+        public Version CurrentVersion { get; }
 
-	    /// <inheritdoc />
-	    public Version LatestVersion { get; private set; }
+        /// <inheritdoc />
+        public Version LatestVersion { get; private set; }
 
         /// <summary>
         /// The latest beta version
         /// </summary>
-	    public Version BetaVersion { get; private set; }
+        public Version BetaVersion { get; private set; }
 
-	    /// <summary>
-	    /// The latest RC version
-	    /// </summary>
-	    public Version ReleaseCandidateVersion { get; private set; }
+        /// <summary>
+        /// The latest RC version
+        /// </summary>
+        public Version ReleaseCandidateVersion { get; private set; }
 
         /// <inheritdoc />
         public bool IsUpdateAvailable => LatestVersion > CurrentVersion;
@@ -82,28 +81,34 @@ namespace Greenshot.Components
         /// Constructor with dependencies
         /// </summary>
         /// <param name="coreConfiguration">ICoreConfiguration</param>
-        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="eventAggregator">IEventAggregator</param>
+        /// <param name="updateNotificationViewModelFactory">UpdateNotificationViewModel factory</param>
         public UpdateService(
             ICoreConfiguration coreConfiguration,
-            IGreenshotLanguage greenshotLanguage)
-	    {
-	        _coreConfiguration = coreConfiguration;
-	        _greenshotLanguage = greenshotLanguage;
-	        LatestVersion = CurrentVersion = GetType().Assembly.GetName().Version;
-	        _coreConfiguration.LastSaveWithVersion = CurrentVersion.ToString();
-
-	    }
-
-	    /// <inheritdoc />
-	    public void Start()
-	    {
-	        var ignore = BackgroundTask(() => TimeSpan.FromDays(_coreConfiguration.UpdateCheckInterval), UpdateCheck, _cancellationTokenSource.Token);
+            IEventAggregator eventAggregator,
+            Func<Version, Owned<UpdateNotificationViewModel>> updateNotificationViewModelFactory)
+        {
+            _coreConfiguration = coreConfiguration;
+            _eventAggregator = eventAggregator;
+            _updateNotificationViewModelFactory = updateNotificationViewModelFactory;
+            var version = FileVersionInfo.GetVersionInfo(GetType().Assembly.Location);
+            LatestVersion = CurrentVersion = new Version(version.FileMajorPart, version.FileMinorPart, version.FileBuildPart);
+            _coreConfiguration.LastSaveWithVersion = CurrentVersion.ToString();
         }
 
-	    /// <inheritdoc />
-	    public void Shutdown()
-	    {
-	        _cancellationTokenSource.Cancel();
+        /// <inheritdoc />
+        public void Startup()
+        {
+            _ = BackgroundTask(() => TimeSpan.FromDays(_coreConfiguration.UpdateCheckInterval), UpdateCheck, _cancellationTokenSource.Token);
+        }
+
+        /// <inheritdoc />
+        public void Shutdown()
+        {
+            if (!_cancellationTokenSource.IsCancellationRequested)
+            {
+                _cancellationTokenSource.Cancel();
+            }
         }
 
         /// <summary>
@@ -113,66 +118,99 @@ namespace Greenshot.Components
         /// <param name="reoccurringTask">Func which returns a task</param>
         /// <param name="cancellationToken">CancellationToken</param>
         /// <returns>Task</returns>
-	    private async Task BackgroundTask(Func<TimeSpan> intervalFactory, Func<CancellationToken, Task> reoccurringTask, CancellationToken cancellationToken = default)
-	    {
-            Log.Info().WriteLine("Starting background task");
-	        await Task.Run(async () =>
-	        {
-	            while (true)
-	            {
-	                var interval = intervalFactory();
-	                var task = reoccurringTask;
-	                if (TimeSpan.Zero == interval)
-	                {
-	                    interval = TimeSpan.FromMinutes(10);
-	                    task = c => Task.FromResult(true);
-	                }
+        private async Task BackgroundTask(Func<TimeSpan> intervalFactory, Func<CancellationToken, Task> reoccurringTask, CancellationToken cancellationToken = default)
+        {
+            // Initial delay, to make sure this doesn't happen at the startup
+            await Task.Delay(20000, cancellationToken);
+            Log.Info().WriteLine("Starting background task to check for updates");
+            await Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var interval = intervalFactory();
+                    var task = reoccurringTask;
+                    // If the check is disabled, handle that here
+                    if (TimeSpan.Zero == interval)
+                    {
+                        interval = TimeSpan.FromMinutes(10);
+                        task = c => Task.FromResult(true);
+                    }
+
                     try
-	                {
-	                    await Task.WhenAll(Task.Delay(interval, cancellationToken), task(cancellationToken));
+                    {
+                        await task(cancellationToken).ConfigureAwait(false);
                     }
-	                catch (Exception ex)
-	                {
+                    catch (Exception ex)
+                    {
                         Log.Error().WriteLine(ex, "Error occured when trying to check for updates.");
-	                }
-                    if (cancellationToken.IsCancellationRequested)
-	                {
-	                    break;
                     }
-	            }
-	        }, cancellationToken);
-	        Log.Info().WriteLine("Finished background task");
+
+                    try
+                    {
+                        await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Ignore, this always happens
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error().WriteLine(ex, "Error occured await for the next update check.");
+                    }
+
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
 
-	    private async Task UpdateCheck(CancellationToken cancellationToken = default)
-	    {
-	        Log.Info().WriteLine("Checking for updates");
-	        var updateFeed = await UpdateFeed.GetAsAsync<SyndicationFeed>(cancellationToken);
-	        if (updateFeed == null)
-	        {
-	            return;
-	        }
+        /// <summary>
+        /// Do the actual update check
+        /// </summary>
+        /// <param name="cancellationToken">CancellationToken</param>
+        /// <returns>Task</returns>
+        private async Task UpdateCheck(CancellationToken cancellationToken = default)
+        {
+            Log.Info().WriteLine("Checking for updates from {0}", UpdateFeed);
+            var updateFeed = await UpdateFeed.GetAsAsync<SyndicationFeed>(cancellationToken);
+            if (updateFeed == null)
+            {
+                return;
+            }
             _coreConfiguration.LastUpdateCheck = DateTime.Now;
 
             ProcessFeed(updateFeed);
-	        
-	        if (IsUpdateAvailable)
-	        {
-	            await UiContext.RunOn(() =>
-	            {
-	                // TODO: Show update
-	                MainForm.Instance.NotifyIcon.BalloonTipClicked += HandleBalloonTipClick;
-	                MainForm.Instance.NotifyIcon.BalloonTipClosed += CleanupBalloonTipClick;
-	                MainForm.Instance.NotifyIcon.ShowBalloonTip(10000, "Greenshot", string.Format(_greenshotLanguage.UpdateFound, LatestVersion), ToolTipIcon.Info);
-                }, cancellationToken);
+            
+            if (IsUpdateAvailable)
+            {
+                ShowUpdate(LatestVersion);
             }
+        }
+
+
+        /// <summary>
+        /// This takes care of creating the toast view model, publishing it, and disposing afterwards
+        /// </summary>
+        private void ShowUpdate(Version latestVersion)
+        {
+            // Create the ViewModel "part"
+            var message = _updateNotificationViewModelFactory(latestVersion);
+            // Prepare to dispose the view model parts automatically if it's finished
+            void DisposeHandler(object sender, DeactivationEventArgs args)
+            {
+                message.Value.Deactivated -= DisposeHandler;
+                message.Dispose();
+            }
+
+            message.Value.Deactivated += DisposeHandler;
+
+            // Show the ViewModel as toast 
+            _eventAggregator.PublishOnUIThread(message.Value);
         }
 
         /// <summary>
         /// Process the update feed to get the latest version
         /// </summary>
         /// <param name="updateFeed"></param>
-	    public void ProcessFeed(SyndicationFeed updateFeed)
+        public void ProcessFeed(SyndicationFeed updateFeed)
         {
             var versions =
                 from link in updateFeed.Items.SelectMany(i => i.Links)
@@ -181,53 +219,28 @@ namespace Greenshot.Components
                 group match by Regex.Replace(match.Groups["type"].Value, @"[\d-]", string.Empty) into groupedVersions
                 select groupedVersions.OrderByDescending(m => new Version(m.Groups["version"].Value)).First();
          
-	        foreach (var versionMatch in versions)
-	        {
-	            var version = new Version(versionMatch.Groups["version"].Value);
-	            var type = versionMatch.Groups["type"].Value;
-	            if (string.IsNullOrEmpty(type))
-	            {
-                    continue;
-	            }
-	            Log.Debug().WriteLine("Got {0} {1}", type, version);
-	            if ("release".Equals(type, StringComparison.OrdinalIgnoreCase))
-	            {
-	                LatestVersion = version;
-	            }
-	            if ("beta".Equals(type, StringComparison.OrdinalIgnoreCase))
-	            {
-	                BetaVersion = version;
-	            }
-	            if ("rc".Equals(type, StringComparison.OrdinalIgnoreCase))
+            foreach (var versionMatch in versions)
+            {
+                var version = new Version(versionMatch.Groups["version"].Value);
+                var type = versionMatch.Groups["type"].Value;
+                if (string.IsNullOrEmpty(type))
                 {
-	                ReleaseCandidateVersion = version;
-	            }
+                    continue;
+                }
+                Log.Debug().WriteLine("Got {0} {1}", type, version);
+                if ("release".Equals(type, StringComparison.OrdinalIgnoreCase))
+                {
+                    LatestVersion = version;
+                }
+                if ("beta".Equals(type, StringComparison.OrdinalIgnoreCase))
+                {
+                    BetaVersion = version;
+                }
+                if ("rc".Equals(type, StringComparison.OrdinalIgnoreCase))
+                {
+                    ReleaseCandidateVersion = version;
+                }
             }
         }
-
-		private void CleanupBalloonTipClick(object sender, EventArgs e)
-		{
-			MainForm.Instance.NotifyIcon.BalloonTipClicked -= HandleBalloonTipClick;
-			MainForm.Instance.NotifyIcon.BalloonTipClosed -= CleanupBalloonTipClick;
-		}
-
-		private void HandleBalloonTipClick(object sender, EventArgs e)
-		{
-			try
-			{
-				// "Direct" download link
-				// Process.Start(latestGreenshot.Link);
-				// Go to getgreenshot.org
-				Process.Start(StableDownloadLink);
-			}
-			catch (Exception)
-			{
-				MessageBox.Show(string.Format(_greenshotLanguage.ErrorOpenlink, StableDownloadLink), _greenshotLanguage.Error);
-			}
-			finally
-			{
-				CleanupBalloonTipClick(sender, e);
-			}
-		}
-	}
+    }
 }

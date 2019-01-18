@@ -33,6 +33,7 @@ using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Forms;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -44,10 +45,11 @@ namespace Greenshot.Addon.LegacyEditor
     [Destination("Editor", 1)]
     public class EditorDestination : AbstractDestination
 	{
+	    private readonly ExportNotification _exportNotification;
 	    private readonly EditorFactory _editorFactory;
 	    private readonly IEditorLanguage _editorLanguage;
 	    private static readonly LogSource Log = new LogSource();
-		private static readonly Bitmap greenshotIcon = GreenshotResources.GetGreenshotIcon().ToBitmap();
+		private static readonly Bitmap greenshotIcon = GreenshotResources.Instance.GetGreenshotIcon().ToBitmap();
 	    private readonly IImageEditor _editor;
 
         /// <summary>
@@ -56,9 +58,11 @@ namespace Greenshot.Addon.LegacyEditor
 	    public EditorDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
             EditorFactory editorFactory,
             IEditorLanguage editorLanguage) : base(coreConfiguration, greenshotLanguage)
         {
+            _exportNotification = exportNotification;
             _editorFactory = editorFactory;
             _editorLanguage = editorLanguage;
         }
@@ -66,9 +70,10 @@ namespace Greenshot.Addon.LegacyEditor
         public EditorDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
             EditorFactory editorFactory,
             IEditorLanguage editorLanguage,
-            IImageEditor editor) : this(coreConfiguration, greenshotLanguage, editorFactory, editorLanguage)
+            IImageEditor editor) : this(coreConfiguration, greenshotLanguage, exportNotification, editorFactory, editorLanguage)
 		{
 		    _editorFactory = editorFactory;
 		    _editor = editor;
@@ -92,7 +97,7 @@ namespace Greenshot.Addon.LegacyEditor
 
 	    public override IEnumerable<IDestination> DynamicDestinations()
 		{
-		    return _editorFactory.Editors.Select(someEditor => new EditorDestination(CoreConfiguration, GreenshotLanguage, _editorFactory, _editorLanguage, someEditor));
+		    return _editorFactory.Editors.Select(someEditor => new EditorDestination(CoreConfiguration, GreenshotLanguage, _exportNotification, _editorFactory, _editorLanguage, someEditor));
 		}
 
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
@@ -125,10 +130,10 @@ namespace Greenshot.Addon.LegacyEditor
 		        _editorFactory.CreateOrReuse(surface, captureDetails);
 		        exportInformation.ExportMade = true;
             }
-			
-			ProcessExport(exportInformation, surface);
-			// Workaround for the modified flag when using the editor.
-			surface.Modified = modified;
+
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            // Workaround for the modified flag when using the editor.
+            surface.Modified = modified;
 			return exportInformation;
 		}
 	}

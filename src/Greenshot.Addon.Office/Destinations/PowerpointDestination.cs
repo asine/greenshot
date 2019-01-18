@@ -28,6 +28,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Greenshot.Addon.Office.Configuration;
 using Greenshot.Addon.Office.OfficeExport;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
@@ -45,32 +46,58 @@ namespace Greenshot.Addon.Office.Destinations
     [Destination("Powerpoint", DestinationOrder.Powerpoint)]
     public class PowerpointDestination : AbstractDestination
 	{
-		private const int IconApplication = 0;
-		private const int IconPresentation = 1;
+	    private readonly IOfficeConfiguration _officeConfiguration;
+	    private readonly ExportNotification _exportNotification;
 
 		private readonly string _exePath;
 		private readonly string _presentationName;
+	    private readonly PowerpointExporter _powerpointExporter;
 
+	    private const int IconApplication = 0;
+	    private const int IconPresentation = 1;
 
-		public PowerpointDestination(
+        /// <summary>
+        /// Constructor used for dependency injection
+        /// </summary>
+        /// <param name="coreConfiguration">ICoreConfiguration</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="officeConfiguration">IOfficeConfiguration</param>
+        /// <param name="exportNotification">ExportNotification</param>
+        public PowerpointDestination(
 		    ICoreConfiguration coreConfiguration,
-		    IGreenshotLanguage greenshotLanguage
-		) : base(coreConfiguration, greenshotLanguage)
+		    IGreenshotLanguage greenshotLanguage,
+            IOfficeConfiguration officeConfiguration,
+		    ExportNotification exportNotification
+        ) : base(coreConfiguration, greenshotLanguage)
         {
-		    _exePath = PluginUtils.GetExePath("POWERPNT.EXE");
+            _officeConfiguration = officeConfiguration;
+            _exportNotification = exportNotification;
+            _powerpointExporter = new PowerpointExporter(officeConfiguration);
+            _exePath = PluginUtils.GetExePath("POWERPNT.EXE");
 		    if (_exePath != null && !File.Exists(_exePath))
 		    {
 		        _exePath = null;
 		    }
         }
 
-		public PowerpointDestination(string presentationName,
+        /// <summary>
+        /// Constructor used for dependency injection
+        /// </summary>
+        /// <param name="presentationName">string with the name of the presentation</param>
+        /// <param name="coreConfiguration">ICoreConfiguration</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
+        /// <param name="officeConfiguration">IOfficeConfiguration</param>
+        /// <param name="exportNotification">ExportNotification</param>
+        public PowerpointDestination(string presentationName,
 		    ICoreConfiguration coreConfiguration,
-		    IGreenshotLanguage greenshotLanguage) : this(coreConfiguration, greenshotLanguage)
+		    IGreenshotLanguage greenshotLanguage,
+		    IOfficeConfiguration officeConfiguration,
+		    ExportNotification exportNotification) : this(coreConfiguration, greenshotLanguage, officeConfiguration, exportNotification)
 		{
 			_presentationName = presentationName;
 		}
 
+        /// <inherit />
 	    public override string Description
 		{
 			get
@@ -83,10 +110,13 @@ namespace Greenshot.Addon.Office.Destinations
 			}
 		}
 
+        /// <inherit />
 		public override bool IsDynamic => true;
 
+        /// <inherit />
 		public override bool IsActive => base.IsActive && _exePath != null;
 
+        /// <inherit />
 		public override Bitmap GetDisplayIcon(double dpi)
 		{
 			if (!string.IsNullOrEmpty(_presentationName))
@@ -97,11 +127,13 @@ namespace Greenshot.Addon.Office.Destinations
 			return PluginUtils.GetCachedExeIcon(_exePath, IconApplication, dpi > 100);
 		}
 
+        /// <inherit />
 		public override IEnumerable<IDestination> DynamicDestinations()
 		{
-			return PowerpointExporter.GetPowerpointPresentations().Select(presentationName => new PowerpointDestination(presentationName, CoreConfiguration, GreenshotLanguage));
+			return _powerpointExporter.GetPowerpointPresentations().Select(presentationName => new PowerpointDestination(presentationName, CoreConfiguration, GreenshotLanguage, _officeConfiguration, _exportNotification));
 		}
 
+        /// <inherit />
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
 			var exportInformation = new ExportInformation(Designation, Description);
@@ -109,27 +141,27 @@ namespace Greenshot.Addon.Office.Destinations
 			var imageSize = Size.Empty;
 			if (tmpFile == null || surface.Modified || !Regex.IsMatch(tmpFile, @".*(\.png|\.gif|\.jpg|\.jpeg|\.tiff|\.bmp)$"))
 			{
-				tmpFile = ImageOutput.SaveNamedTmpFile(surface, captureDetails, new SurfaceOutputSettings().PreventGreenshotFormat());
+				tmpFile = ImageOutput.SaveNamedTmpFile(surface, captureDetails, new SurfaceOutputSettings(CoreConfiguration).PreventGreenshotFormat());
 				imageSize = surface.Screenshot.Size;
 			}
 			if (_presentationName != null)
 			{
-				exportInformation.ExportMade = PowerpointExporter.ExportToPresentation(_presentationName, tmpFile, imageSize, captureDetails.Title);
+				exportInformation.ExportMade = _powerpointExporter.ExportToPresentation(_presentationName, tmpFile, imageSize, captureDetails.Title);
 			}
 			else
 			{
 				if (!manuallyInitiated)
 				{
-					var presentations = PowerpointExporter.GetPowerpointPresentations();
-					if (presentations != null && presentations.Count > 0)
+					var presentations = _powerpointExporter.GetPowerpointPresentations().ToList();
+					if (presentations.Count > 0)
 					{
 						var destinations = new List<IDestination>
 						{
-						    new PowerpointDestination(CoreConfiguration, GreenshotLanguage)
+						    new PowerpointDestination(CoreConfiguration, GreenshotLanguage, _officeConfiguration, _exportNotification)
 						};
 						foreach (var presentation in presentations)
 						{
-							destinations.Add(new PowerpointDestination(presentation, CoreConfiguration, GreenshotLanguage));
+							destinations.Add(new PowerpointDestination(presentation, CoreConfiguration, GreenshotLanguage, _officeConfiguration, _exportNotification));
 						}
 						// Return the ExportInformation from the picker without processing, as this indirectly comes from us self
 						return ShowPickerMenu(false, surface, captureDetails, destinations);
@@ -137,11 +169,11 @@ namespace Greenshot.Addon.Office.Destinations
 				}
 				else if (!exportInformation.ExportMade)
 				{
-					exportInformation.ExportMade = PowerpointExporter.InsertIntoNewPresentation(tmpFile, imageSize, captureDetails.Title);
+					exportInformation.ExportMade = _powerpointExporter.InsertIntoNewPresentation(tmpFile, imageSize, captureDetails.Title);
 				}
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 	}
 }

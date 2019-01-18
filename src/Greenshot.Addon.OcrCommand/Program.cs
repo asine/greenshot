@@ -25,10 +25,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using Greenshot.Addon.OcrCommand.Modi;
-
+#if DEBUG
+using System.Diagnostics;
+#endif
 #endregion
 
 namespace Greenshot.Addon.OcrCommand

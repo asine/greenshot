@@ -24,7 +24,10 @@
 using Autofac;
 using Dapplo.Addons;
 using Dapplo.CaliburnMicro.Configuration;
-using Dapplo.Ini;
+using Dapplo.Config.Ini;
+using Dapplo.Config.Language;
+using Greenshot.Addon.ExternalCommand.Configuration;
+using Greenshot.Addon.ExternalCommand.Configuration.Impl;
 using Greenshot.Addon.ExternalCommand.ViewModels;
 using Greenshot.Addons.Components;
 
@@ -36,8 +39,20 @@ namespace Greenshot.Addon.ExternalCommand
         protected override void Load(ContainerBuilder builder)
         {
             builder
+                .RegisterType<ExternalCommandConfigurationImpl>()
+                .As<IExternalCommandConfiguration>()
+                .As<IIniSection>()
+                .SingleInstance();
+
+            builder
+                .RegisterType<ExternalCommandLanguageImpl>()
+                .As<IExternalCommandLanguage>()
+                .As<ILanguage>()
+                .SingleInstance();
+
+            builder
                 .RegisterType<ExternalCommandDestinationProvider>()
-                .As<IStartup>()
+                .As<IService>()
                 .As<IDestinationProvider>()
                 .SingleInstance();
             builder
@@ -49,20 +64,7 @@ namespace Greenshot.Addon.ExternalCommand
                 .AsSelf()
                 .SingleInstance();
 
-            builder.RegisterType<SetupConfig>()
-                .As<IStartable>()
-                .SingleInstance();
-
             base.Load(builder);
-        }
-
-        /// <inheritdoc />
-        private class SetupConfig : IStartable
-        {
-            public void Start()
-            {
-                IniConfig.Current.AfterLoad<IExternalCommandConfiguration>(externalCommandConfiguration => externalCommandConfiguration.AfterLoad());
-            }
         }
     }
 }

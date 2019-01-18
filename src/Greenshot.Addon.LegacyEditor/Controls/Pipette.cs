@@ -24,14 +24,15 @@
 #region Usings
 
 using System;
-using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 using Dapplo.Windows.Common.Structs;
+using Dapplo.Windows.Icons;
+using Dapplo.Windows.Icons.SafeHandles;
 using Dapplo.Windows.Messages;
 using Dapplo.Windows.User32;
-using Dapplo.Windows.User32.SafeHandles;
 using Greenshot.Addons.Controls;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -53,7 +54,7 @@ namespace Greenshot.Addon.LegacyEditor.Controls
 		{
 			BorderStyle = BorderStyle.FixedSingle;
 			_dragging = false;
-			_image = (Bitmap) new ComponentResourceManager(typeof(ColorDialog)).GetObject("pipette.Image");
+			_image = GreenshotResources.Instance.GetBitmap("pipette.Image", GetType());
 			Image = _image;
 			_cursor = CreateCursor(_image, 1, 14);
 			_movableShowColorForm = new MovableShowColorForm();
@@ -90,7 +91,7 @@ namespace Greenshot.Addon.LegacyEditor.Controls
 		public event EventHandler<PipetteUsedArgs> PipetteUsed;
 
 		/// <summary>
-		///     Create a cursor from the supplied bitmap & hotspot coordinates
+		///     Create a cursor from the supplied bitmap and hotspot coordinates
 		/// </summary>
 		/// <param name="bitmap">Bitmap to create an icon from</param>
 		/// <param name="hotspotX">Hotspot X coordinate</param>
@@ -100,10 +101,10 @@ namespace Greenshot.Addon.LegacyEditor.Controls
 		{
 			using (var iconHandle = new SafeIconHandle(bitmap.GetHicon()))
 			{
-			    User32Api.GetIconInfo(iconHandle, out var iconInfo);
+			    NativeIconMethods.GetIconInfo(iconHandle, out var iconInfo);
 				iconInfo.Hotspot = new NativePoint(hotspotX, hotspotY);
 				iconInfo.IsIcon = false;
-				var icon = User32Api.CreateIconIndirect(ref iconInfo);
+				var icon = NativeIconMethods.CreateIconIndirect(ref iconInfo);
 				return new Cursor(icon);
 			}
 		}

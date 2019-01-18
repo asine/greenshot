@@ -56,8 +56,9 @@ namespace Greenshot.Addon.Tfs
         private readonly ITfsConfiguration _tfsConfiguration;
         private readonly ITfsLanguage _tfsLanguage;
         private readonly TfsClient _tfsClient;
-        private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+        private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
         private readonly IResourceProvider _resourceProvider;
+        private readonly ExportNotification _exportNotification;
         private readonly WorkItem _workItem;
 
         public TfsDestination(
@@ -66,14 +67,16 @@ namespace Greenshot.Addon.Tfs
             ITfsConfiguration tfsConfiguration,
             ITfsLanguage tfsLanguage,
             TfsClient tfsClient,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
-            IResourceProvider resourceProvider) : base(coreConfiguration, greenshotLanguage)
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
+            IResourceProvider resourceProvider,
+            ExportNotification exportNotification) : base(coreConfiguration, greenshotLanguage)
         {
             _tfsConfiguration = tfsConfiguration;
             _tfsLanguage = tfsLanguage;
             _tfsClient = tfsClient;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
             _resourceProvider = resourceProvider;
+            _exportNotification = exportNotification;
         }
 
         protected TfsDestination(
@@ -82,9 +85,10 @@ namespace Greenshot.Addon.Tfs
             ITfsConfiguration tfsConfiguration,
             ITfsLanguage tfsLanguage,
             TfsClient tfsClient,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
             IResourceProvider resourceProvider,
-            WorkItem workItem) :this(coreConfiguration, greenshotLanguage, tfsConfiguration, tfsLanguage, tfsClient, pleaseWaitFormFactory, resourceProvider)
+            ExportNotification exportNotification,
+            WorkItem workItem) :this(coreConfiguration, greenshotLanguage, tfsConfiguration, tfsLanguage, tfsClient, pleaseWaitFormFactory, resourceProvider, exportNotification)
         {
             _workItem = workItem;
         }
@@ -115,7 +119,7 @@ namespace Greenshot.Addon.Tfs
             }
             foreach (var workitem in workitems)
             {
-                yield return new TfsDestination(CoreConfiguration, GreenshotLanguage, _tfsConfiguration, _tfsLanguage, _tfsClient, _pleaseWaitFormFactory, _resourceProvider, workitem);
+                yield return new TfsDestination(CoreConfiguration, GreenshotLanguage, _tfsConfiguration, _tfsLanguage, _tfsClient, _pleaseWaitFormFactory, _resourceProvider, _exportNotification, workitem);
             }
         }
 
@@ -161,7 +165,7 @@ namespace Greenshot.Addon.Tfs
                 ExportMade = uploadUrl != null,
                 Uri = uploadUrl?.AbsoluteUri
             };
-            ProcessExport(exportInformation, surface);
+            _exportNotification.NotifyOfExport(this, exportInformation, surface);
             return exportInformation;
         }
 
@@ -178,8 +182,9 @@ namespace Greenshot.Addon.Tfs
                 Uri response;
 
                 var cancellationTokenSource = new CancellationTokenSource();
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("TFS plug-in", _tfsLanguage.CommunicationWait, cancellationTokenSource))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(cancellationTokenSource))
                 {
+                    ownedPleaseWaitForm.Value.SetDetails("TFS plug-in", _tfsLanguage.CommunicationWait);
                     ownedPleaseWaitForm.Value.Show();
                     try
                     {

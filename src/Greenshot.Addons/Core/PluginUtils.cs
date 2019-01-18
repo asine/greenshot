@@ -29,10 +29,10 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Log;
 using Dapplo.Windows.Icons;
 using Dapplo.Windows.Icons.Enums;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Interfaces.Forms;
 using Microsoft.Win32;
 
@@ -47,13 +47,25 @@ namespace Greenshot.Addons.Core
 	{
 		private const string PathKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\";
 		private static readonly LogSource Log = new LogSource();
-		private static readonly ICoreConfiguration CoreConfig = IniConfig.Current.Get<ICoreConfiguration>();
-		private static readonly IDictionary<string, Bitmap> ExeIconCache = new Dictionary<string, Bitmap>();
+	    private static bool _isHooked = false;
+		private static readonly Dictionary<string, Bitmap> ExeIconCache = new Dictionary<string, Bitmap>();
+        private static ICoreConfiguration coreConfiguration;
 
-		static PluginUtils()
-		{
-			CoreConfig.PropertyChanged += OnIconSizeChanged;
-		}
+        /// <summary>
+        /// Set from DI via AddonsModule
+        /// </summary>
+        internal static ICoreConfiguration CoreConfiguration {
+            get
+            {
+                return coreConfiguration;
+            }
+
+            set
+            {
+                coreConfiguration = value;
+                coreConfiguration.PropertyChanged += OnIconSizeChanged;
+            }
+        }
 
 		/// <summary>
 		///     Clear icon cache
@@ -130,7 +142,7 @@ namespace Greenshot.Addons.Core
 		    Bitmap returnValue;
 			lock (ExeIconCache)
 			{
-				if (ExeIconCache.TryGetValue(cacheKey, out returnValue))
+                if (ExeIconCache.TryGetValue(cacheKey, out returnValue))
 				{
 					return returnValue;
 				}

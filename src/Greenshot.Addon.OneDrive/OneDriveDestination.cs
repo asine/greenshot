@@ -39,6 +39,7 @@ using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.OneDrive.Configuration;
 using Greenshot.Addon.OneDrive.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
@@ -62,7 +63,8 @@ namespace Greenshot.Addon.OneDrive
         private readonly IOneDriveConfiguration _oneDriveConfiguration;
         private readonly IOneDriveLanguage _oneDriveLanguage;
         private readonly IResourceProvider _resourceProvider;
-        private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+        private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+        private readonly ExportNotification _exportNotification;
         private readonly OAuth2Settings _oauth2Settings;
         private static readonly Uri GraphUri = new Uri("https://graph.microsoft.com");
         private static readonly Uri OneDriveUri = GraphUri.AppendSegments("v1.0", "me", "drive");
@@ -73,17 +75,19 @@ namespace Greenshot.Addon.OneDrive
         public OneDriveDestination(
             IOneDriveConfiguration oneDriveConfiguration,
             IOneDriveLanguage oneDriveLanguage,
-            INetworkConfiguration networkConfiguration,
+            IHttpConfiguration httpConfiguration,
             IResourceProvider resourceProvider,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
             ICoreConfiguration coreConfiguration,
-            IGreenshotLanguage greenshotLanguage
+            IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification
         ) : base(coreConfiguration, greenshotLanguage)
         {
             _oneDriveConfiguration = oneDriveConfiguration;
             _oneDriveLanguage = oneDriveLanguage;
             _resourceProvider = resourceProvider;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
+            _exportNotification = exportNotification;
             // Configure the OAuth2 settings for OneDrive communication
             _oauth2Settings = new OAuth2Settings
             {
@@ -106,7 +110,7 @@ namespace Greenshot.Addon.OneDrive
             };
             _oneDriveHttpBehaviour = new HttpBehaviour
             {
-                HttpSettings = networkConfiguration,
+                HttpSettings = httpConfiguration,
                 JsonSerializer = new JsonNetJsonSerializer()
             };
         }
@@ -135,7 +139,7 @@ namespace Greenshot.Addon.OneDrive
                 ExportMade = uploadUrl != null,
                 Uri = uploadUrl?.AbsoluteUri
             };
-            ProcessExport(exportInformation, surface);
+            _exportNotification.NotifyOfExport(this, exportInformation, surface);
             return exportInformation;
         }
 
@@ -152,8 +156,9 @@ namespace Greenshot.Addon.OneDrive
                 Uri response;
 
                 var cancellationTokenSource = new CancellationTokenSource();
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("OneDrive", _oneDriveLanguage.CommunicationWait, cancellationTokenSource))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(cancellationTokenSource))
                 {
+                    ownedPleaseWaitForm.Value.SetDetails("OneDrive", _oneDriveLanguage.CommunicationWait);
                     ownedPleaseWaitForm.Value.Show();
                     try
                     {
@@ -237,9 +242,11 @@ namespace Greenshot.Addon.OneDrive
             var localBehaviour = _oneDriveHttpBehaviour.ShallowClone();
             var oauthHttpBehaviour = OAuth2HttpBehaviourFactory.Create(oAuth2Settings, localBehaviour);
             oauthHttpBehaviour.MakeCurrent();
-            var body = new OneDriveGetLinkRequest();
-            body.Scope = oneDriveLinkType == OneDriveLinkType.@public ? "anonymous" : "organization";
-            body.Type = "view";
+            var body = new OneDriveGetLinkRequest
+            {
+                Scope = oneDriveLinkType == OneDriveLinkType.@public ? "anonymous" : "organization",
+                Type = "view"
+            };
             return await sharableLink.PostAsync<OneDriveGetLinkResponse>(body);
         }
     }

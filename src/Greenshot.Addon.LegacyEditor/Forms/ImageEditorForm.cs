@@ -39,7 +39,6 @@ using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.Desktop;
 using Dapplo.Windows.Dpi;
-using Dapplo.Windows.Dpi.Enums;
 using Dapplo.Windows.Kernel32;
 using Dapplo.Windows.User32;
 using Greenshot.Addon.LegacyEditor.Controls;
@@ -54,6 +53,7 @@ using Greenshot.Addons.Extensions;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Drawing;
 using Greenshot.Addons.Interfaces.Forms;
+using Greenshot.Addons.Resources;
 using Greenshot.Gfx;
 using Greenshot.Gfx.Effects;
 
@@ -123,7 +123,7 @@ namespace Greenshot.Addon.LegacyEditor.Forms
                 // Make sure the editor is placed on the same location as the last editor was on close
                 // But only if this still exists, else it will be reset (BUG-1812)
                 var editorWindowPlacement = _editorConfiguration.GetEditorPlacement();
-                var screenbounds = WindowCapture.GetScreenBounds();
+                var screenbounds = DisplayInfo.ScreenBounds;
                 if (!screenbounds.Contains(editorWindowPlacement.NormalPosition))
                 {
                     _editorConfiguration.ResetEditorPlacement();
@@ -153,27 +153,19 @@ namespace Greenshot.Addon.LegacyEditor.Forms
             // Create a BitmapScaleHandler which knows how to locate the icons for the destinations
             _destinationScaleHandler = BitmapScaleHandler.Create<IDestination>(FormDpiHandler, (destination, dpi) => destination.GetDisplayIcon(dpi), (bitmap, dpi) => bitmap.ScaleIconForDisplaying(dpi));
 
-            FormDpiHandler.OnDpiChangeInfo.Subscribe(info =>
+            FormDpiHandler.OnDpiChanged.Subscribe(info =>
             {
-                switch (info.DpiChangeEventType)
-                {
-                    case DpiChangeEventTypes.Before:
-                        // Change the ImageScalingSize before setting the bitmaps
-                        var width = DpiHandler.ScaleWithDpi(_coreConfiguration.IconSize.Width, info.NewDpi);
-                        var size = new Size(width, width);
-                        SuspendLayout();
-                        toolsToolStrip.ImageScalingSize = size;
-                        menuStrip1.ImageScalingSize = size;
-                        destinationsToolStrip.ImageScalingSize = size;
-                        propertiesToolStrip.ImageScalingSize = size;
-                        propertiesToolStrip.MinimumSize = new Size(150, width + 10);
-                        break;
-                    case DpiChangeEventTypes.After:
-                        // Redraw the form
-                        ResumeLayout(true);
-                        Refresh();
-                        break;
-                }
+                // Change the ImageScalingSize before setting the bitmaps
+                var size =  DpiHandler.ScaleWithDpi(_coreConfiguration.IconSize, info.NewDpi);
+                SuspendLayout();
+                toolsToolStrip.ImageScalingSize = size;
+                menuStrip1.ImageScalingSize = size;
+                destinationsToolStrip.ImageScalingSize = size;
+                propertiesToolStrip.ImageScalingSize = size;
+                propertiesToolStrip.MinimumSize = new Size(150, size.Width + 10);
+                // Redraw the form
+                ResumeLayout(true);
+                Refresh();
             });
 
             // Use the GreenshotForm ScaleHandler to locate the icons and get them scaled
@@ -185,7 +177,7 @@ namespace Greenshot.Addon.LegacyEditor.Forms
 
             ScaleHandler.AddTarget(btnFreehand, "btnFreehand.Image");
             ScaleHandler.AddTarget(btnText, "btnText.Image");
-            ScaleHandler.AddTarget(btnSpeechBubble, "btnSpeechBubble.Image");
+            ScaleHandler.AddTarget(btnSpeechBubble, "addSpeechBubbleToolStripMenuItem.Image");
             ScaleHandler.AddTarget(btnHighlight, "btnHighlight.Image");
             ScaleHandler.AddTarget(btnObfuscate, "btnObfuscate.Image");
 
@@ -235,19 +227,19 @@ namespace Greenshot.Addon.LegacyEditor.Forms
             ScaleHandler.AddTarget(btnLineColor, "btnLineColor.Image");
             ScaleHandler.AddTarget(fontBoldButton, "fontBoldButton.Image");
             ScaleHandler.AddTarget(fontItalicButton, "fontItalicButton.Image");
-            ScaleHandler.AddTarget(textVerticalAlignmentButton, "textVerticalAlignmentButton.Image");
-            ScaleHandler.AddTarget(alignTopToolStripMenuItem, "alignTopToolStripMenuItem.Image");
-            ScaleHandler.AddTarget(alignMiddleToolStripMenuItem, "alignMiddleToolStripMenuItem.Image");
-            ScaleHandler.AddTarget(alignBottomToolStripMenuItem, "alignBottomToolStripMenuItem.Image");
+            ScaleHandler.AddTarget(textVerticalAlignmentButton, "btnAlignMiddle.Image");
+            ScaleHandler.AddTarget(alignTopToolStripMenuItem, "btnAlignTop.Image");
+            ScaleHandler.AddTarget(alignMiddleToolStripMenuItem, "btnAlignMiddle.Image");
+            ScaleHandler.AddTarget(alignBottomToolStripMenuItem, "btnAlignBottom.Image");
             ScaleHandler.AddTarget(arrowHeadsDropDownButton, "arrowHeadsDropDownButton.Image");
             ScaleHandler.AddTarget(shadowButton, "shadowButton.Image");
             ScaleHandler.AddTarget(btnConfirm, "btnConfirm.Image");
             ScaleHandler.AddTarget(btnCancel, "btnCancel.Image");
             ScaleHandler.AddTarget(closeToolStripMenuItem, "closeToolStripMenuItem.Image");
-            ScaleHandler.AddTarget(textHorizontalAlignmentButton, "textHorizontalAlignmentButton.Image");
-            ScaleHandler.AddTarget(alignLeftToolStripMenuItem, "alignLeftToolStripMenuItem.Image");
-            ScaleHandler.AddTarget(alignCenterToolStripMenuItem, "alignCenterToolStripMenuItem.Image");
-            ScaleHandler.AddTarget(alignRightToolStripMenuItem, "alignRightToolStripMenuItem.Image");
+            ScaleHandler.AddTarget(textHorizontalAlignmentButton, "btnAlignCenter.Image");
+            ScaleHandler.AddTarget(alignLeftToolStripMenuItem, "btnAlignLeft.Image");
+            ScaleHandler.AddTarget(alignCenterToolStripMenuItem, "btnAlignCenter.Image");
+            ScaleHandler.AddTarget(alignRightToolStripMenuItem, "btnAlignRight.Image");
         }
 
         /// <summary>
@@ -297,7 +289,7 @@ namespace Greenshot.Addon.LegacyEditor.Forms
             {
                 panel1.Controls.Add(_surface);
             }
-            var backgroundForTransparency = GreenshotResources.GetBitmap("Checkerboard.Image");
+            var backgroundForTransparency = GreenshotResources.Instance.GetBitmap("Checkerboard.Image");
             if (_surface != null)
             {
                 _surface.TransparencyBackgroundBrush = new TextureBrush(backgroundForTransparency, WrapMode.Tile);
@@ -369,9 +361,8 @@ namespace Greenshot.Addon.LegacyEditor.Forms
                 // Loop over all items in the propertiesToolStrip
                 foreach (ToolStripItem item in propertiesToolStrip.Items)
                 {
-                    var cb = item as ToolStripComboBox;
                     // Only ToolStripComboBox that are visible
-                    if (cb == null || !cb.Visible)
+                    if (!(item is ToolStripComboBox cb) || !cb.Visible)
                     {
                         continue;
                     }
@@ -1712,6 +1703,7 @@ namespace Greenshot.Addon.LegacyEditor.Forms
 
         #region key handling
 
+        /// <inheritdoc />
         protected override bool ProcessKeyPreview(ref Message msg)
         {
             // disable default key handling if surface has requested a lock
@@ -1723,6 +1715,7 @@ namespace Greenshot.Addon.LegacyEditor.Forms
             return base.ProcessKeyPreview(ref msg);
         }
 
+        /// <inheritdoc />
         protected override bool ProcessCmdKey(ref Message msg, Keys keys)
         {
             // disable default key handling if surface has requested a lock

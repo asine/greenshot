@@ -34,9 +34,12 @@ using System.Windows.Media.Imaging;
 using Dapplo.HttpExtensions;
 using Dapplo.HttpExtensions.Extensions;
 using Dapplo.Jira;
+#if !NETCOREAPP3_0
 using Dapplo.Jira.Converters;
+#endif
 using Dapplo.Jira.Entities;
 using Dapplo.Log;
+using Greenshot.Addon.Jira.Configuration;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Core.Credentials;
 using Greenshot.Addons.Extensions;
@@ -66,13 +69,13 @@ namespace Greenshot.Addon.Jira
 		    IJiraConfiguration jiraConfiguration,
 		    JiraMonitor jiraMonitor,
 		    ICoreConfiguration coreConfiguration,
-		    INetworkConfiguration networkConfiguration)
+		    IHttpConfiguration httpConfiguration)
 		{
 		    jiraConfiguration.Url = jiraConfiguration.Url.Replace(DefaultPostfix, "");
 		    _jiraConfiguration = jiraConfiguration;
 		    _jiraMonitor = jiraMonitor;
 		    _coreConfiguration = coreConfiguration;
-		    _jiraClient = JiraClient.Create(new Uri(jiraConfiguration.Url), networkConfiguration);
+		    _jiraClient = JiraClient.Create(new Uri(jiraConfiguration.Url), httpConfiguration);
 		}
 
 		public Bitmap FavIcon { get; private set; }
@@ -102,7 +105,9 @@ namespace Greenshot.Addon.Jira
 
 		public void UpdateSvgSize(int size)
 		{
+#if !NETCOREAPP3_0
 			_jiraClient.Behaviour.SetConfig(new SvgConfiguration { Width = size, Height = size });
+#endif
 		}
 
 		/// <summary>
@@ -119,13 +124,13 @@ namespace Greenshot.Addon.Jira
 			_issueTypeBitmapCache = new IssueTypeBitmapCache(_jiraClient);
 			try
 			{
-				await _jiraClient.Session.StartAsync(user, password, cancellationToken);
-				await _jiraMonitor.AddJiraInstanceAsync(_jiraClient, cancellationToken);
+				await _jiraClient.Session.StartAsync(user, password, cancellationToken).ConfigureAwait(true);
+				await _jiraMonitor.AddJiraInstanceAsync(_jiraClient, cancellationToken).ConfigureAwait(true);
 
 				var favIconUri = _jiraClient.JiraBaseUri.AppendSegments("favicon.ico");
 				try
 				{
-					FavIcon = await _jiraClient.Server.GetUriContentAsync<Bitmap>(favIconUri, cancellationToken);
+					FavIcon = await _jiraClient.Server.GetUriContentAsync<Bitmap>(favIconUri, cancellationToken).ConfigureAwait(true);
 				}
 				catch (Exception ex)
 				{
@@ -298,7 +303,7 @@ namespace Greenshot.Addon.Jira
 			var searchResult =
 				await _jiraClient.Issue.SearchAsync(filter.Jql,
                 new Page { MaxResults = 20},
-                new[] {"summary", "reporter", "assignee", "created", "issuetype"}, cancellationToken).ConfigureAwait(false);
+                new[] {"summary", "reporter", "assignee", "created", "issuetype"}, cancellationToken:cancellationToken).ConfigureAwait(false);
 			return searchResult.Issues;
 		}
 

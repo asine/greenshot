@@ -41,9 +41,11 @@ namespace Greenshot.Addon.Win10
 	[Destination("WIN10OCR")]
 	public class Win10OcrDestination : AbstractDestination
 	{
-		private static readonly LogSource Log = new LogSource();
+	    private readonly ExportNotification _exportNotification;
+	    private static readonly LogSource Log = new LogSource();
 
-		public override string Description { get; } = "Windows 10 OCR";
+        /// <inheritdoc />
+        public override string Description { get; } = "Windows 10 OCR";
 
 		/// <summary>
 		/// Icon for the OCR function, the icon was found via: http://help4windows.com/windows_8_imageres_dll.shtml
@@ -55,42 +57,44 @@ namespace Greenshot.Addon.Win10
 		/// </summary>
 		public Win10OcrDestination(
 		    ICoreConfiguration coreConfiguration,
-		    IGreenshotLanguage greenshotLanguage
+		    IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification
 		) : base(coreConfiguration, greenshotLanguage)
         {
-			var languages = OcrEngine.AvailableRecognizerLanguages;
+            _exportNotification = exportNotification;
+            var languages = OcrEngine.AvailableRecognizerLanguages;
 			foreach (var language in languages)
 			{
 				Log.Debug().WriteLine("Found language {0} {1}", language.NativeName, language.LanguageTag);
 			}
 		}
 
-		/// <summary>
-		/// Run the Windows 10 OCR engine to process the text on the captured image
-		/// </summary>
-		/// <param name="manuallyInitiated"></param>
-		/// <param name="surface"></param>
-		/// <param name="captureDetails"></param>
-		/// <returns>ExportInformation</returns>
-		public override async Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
+        /// <summary>
+        /// Run the Windows 10 OCR engine to process the text on the captured image
+        /// </summary>
+        /// <param name="manuallyInitiated"></param>
+        /// <param name="surface"></param>
+        /// <param name="captureDetails"></param>
+        /// <returns>ExportInformation</returns>
+        public override async Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
-			var exportInformation = new ExportInformation(Designation, Description);
+            var exportInformation = new ExportInformation(Designation, Description);
 			try
 			{
 			    string text;
 				var ocrEngine = OcrEngine.TryCreateFromUserProfileLanguages();
 				using (var imageStream = new MemoryStream())
 				{
-					ImageOutput.SaveToStream(surface, imageStream, new SurfaceOutputSettings());
+					ImageOutput.SaveToStream(surface, imageStream, new SurfaceOutputSettings(CoreConfiguration));
 					imageStream.Position = 0;
 
 					var decoder = await BitmapDecoder.CreateAsync(imageStream.AsRandomAccessStream());
 					var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
 
 					var ocrResult = await ocrEngine.RecognizeAsync(softwareBitmap);
+                    // TODO: Get the lines, words, bounding rectangles
 					text = ocrResult.Text;
 				}
-
 
 				// Check if we found text
 				if (!string.IsNullOrWhiteSpace(text))
@@ -110,7 +114,7 @@ namespace Greenshot.Addon.Win10
 				exportInformation.ErrorMessage = ex.Message;
 			}
 
-			ProcessExport(exportInformation, surface);
+            _exportNotification.NotifyOfExport(this, exportInformation, surface);
 			return exportInformation;
 
 		}

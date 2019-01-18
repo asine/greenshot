@@ -29,8 +29,10 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CliWrap;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.ExternalCommand.Configuration;
 using Greenshot.Addon.ExternalCommand.Entities;
 using Greenshot.Addons;
+using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Extensions;
 using Greenshot.Addons.Interfaces;
@@ -42,73 +44,74 @@ namespace Greenshot.Addon.ExternalCommand
     /// <summary>
     ///     ExternalCommandDestination provides a destination to export to an external command
     /// </summary>
-    public class ExternalCommandDestination : AbstractDestination
+    public sealed class ExternalCommandDestination : AbstractDestination
 	{
 		private static readonly Regex UriRegexp = new Regex(
 				@"((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)", RegexOptions.Compiled);
 
 		private readonly ExternalCommandDefinition _externalCommandDefinition;
 	    private readonly IExternalCommandConfiguration _externalCommandConfiguration;
+	    private readonly ExportNotification _exportNotification;
 
 	    public ExternalCommandDestination(ExternalCommandDefinition defintion,
             IExternalCommandConfiguration externalCommandConfiguration,
 		    ICoreConfiguration coreConfiguration,
-		    IGreenshotLanguage greenshotLanguage
-		) : base(coreConfiguration, greenshotLanguage)
-	    {
+		    IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification
+        ) : base(coreConfiguration, greenshotLanguage)
+        {
 	        _externalCommandDefinition = defintion;
 	        _externalCommandConfiguration = externalCommandConfiguration;
-	    }
+            _exportNotification = exportNotification;
+        }
 
-		public override string Designation => "External " + _externalCommandDefinition.Name.Replace(',', '_');
+	    /// <inheritdoc />
+	    public override string Designation => "External " + _externalCommandDefinition.Name.Replace(',', '_');
 
-		public override string Description => _externalCommandDefinition.Name;
+	    /// <inheritdoc />
+	    public override string Description => _externalCommandDefinition.Name;
 
-		public override Bitmap GetDisplayIcon(double dpi)
+	    /// <inheritdoc />
+	    public override Bitmap GetDisplayIcon(double dpi)
 		{
 			return IconCache.IconForCommand(_externalCommandDefinition, dpi > 100);
 		}
 
+	    /// <inheritdoc />
 	    public override async Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 	    {
 	        var exportInformation = new ExportInformation(Designation, Description);
 
-	        var fullPath = captureDetails.Filename;
-	        if (fullPath == null)
-	        {
-	            fullPath = surface.SaveNamedTmpFile(CoreConfiguration, _externalCommandConfiguration);
-	        }
+	        var fullPath = captureDetails.Filename ?? surface.SaveNamedTmpFile(CoreConfiguration, _externalCommandConfiguration);
 
-	        using (var cli = new Cli(_externalCommandDefinition.Command))
-	        {
-	            var arguments = string.Format(_externalCommandDefinition.Arguments, fullPath);
-	            // Execute
-	            var output = await cli.ExecuteAsync(arguments);
+	        var cli = new Cli(_externalCommandDefinition.Command);
+	        var arguments = string.Format(_externalCommandDefinition.Arguments, fullPath);
+	        // Execute
+	        cli.SetArguments(arguments);
+	        var output = await cli.ExecuteAsync().ConfigureAwait(true);
 
-	            if (_externalCommandDefinition.CommandBehavior.HasFlag(CommandBehaviors.ParseOutputForUris))
+	        if (_externalCommandDefinition.CommandBehavior.HasFlag(CommandBehaviors.ParseOutputForUris))
+	        {
+	            var uriMatches = UriRegexp.Matches(output.StandardOutput);
+	            if (uriMatches.Count > 0)
 	            {
-	                var uriMatches = UriRegexp.Matches(output.StandardOutput);
-	                if (uriMatches.Count > 0)
-	                {
-	                    exportInformation.Uri = uriMatches[0].Groups[1].Value;
+	                exportInformation.Uri = uriMatches[0].Groups[1].Value;
 
-	                    using (var clipboardAccessToken = ClipboardNative.Access())
-	                    {
-	                        clipboardAccessToken.ClearContents();
-                            clipboardAccessToken.SetAsUrl(exportInformation.Uri);
-	                    }
+	                using (var clipboardAccessToken = ClipboardNative.Access())
+	                {
+	                    clipboardAccessToken.ClearContents();
+                        clipboardAccessToken.SetAsUrl(exportInformation.Uri);
 	                }
 	            }
-
-	            if (_externalCommandDefinition.CommandBehavior.HasFlag(CommandBehaviors.DeleteOnExit))
-	            {
-                    File.Delete(fullPath);
-	            }
 	        }
 
+	        if (_externalCommandDefinition.CommandBehavior.HasFlag(CommandBehaviors.DeleteOnExit))
+	        {
+                File.Delete(fullPath);
+	        }
 
-	        ProcessExport(exportInformation, surface);
-	        return exportInformation;
+	        _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 	    }
 	}
 }

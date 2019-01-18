@@ -28,7 +28,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Log;
 using Dapplo.Windows.App;
 using Dapplo.Windows.Common;
@@ -36,12 +35,14 @@ using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.Desktop;
 using Dapplo.Windows.DesktopWindowsManager;
+using Dapplo.Windows.DesktopWindowsManager.Structs;
 using Dapplo.Windows.Gdi32;
 using Dapplo.Windows.Icons;
 using Dapplo.Windows.Kernel32;
 using Dapplo.Windows.User32.Enums;
-using Greenshot.Addons.Core.Enums;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx;
 using Greenshot.Gfx.FastBitmap;
 
@@ -55,7 +56,11 @@ namespace Greenshot.Addons.Core
     public static class InteropWindowCaptureExtensions
     {
         private static readonly LogSource Log = new LogSource();
-        private static readonly ICoreConfiguration CoreConfiguration = IniConfig.Current.Get<ICoreConfiguration>();
+
+        /// <summary>
+        /// Set from DI via AddonsModule
+        /// </summary>
+        internal static ICoreConfiguration CoreConfiguration { get; set; }
         private static Color _transparentColor = Color.Transparent;
 
         /// <summary>

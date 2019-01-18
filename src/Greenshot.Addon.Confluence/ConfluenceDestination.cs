@@ -33,6 +33,7 @@ using Autofac.Features.OwnedInstances;
 using Dapplo.Confluence;
 using Dapplo.Confluence.Entities;
 using Dapplo.Log;
+using Greenshot.Addon.Confluence.Configuration;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Controls;
@@ -53,6 +54,7 @@ namespace Greenshot.Addon.Confluence
 	{
 	    private static readonly LogSource Log = new LogSource();
 		private static readonly Bitmap ConfluenceIcon;
+	    private readonly ExportNotification _exportNotification;
 	    private readonly IConfluenceConfiguration _confluenceConfiguration;
 	    private readonly IConfluenceLanguage _confluenceLanguage;
 	    private readonly Func<Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
@@ -81,11 +83,13 @@ namespace Greenshot.Addon.Confluence
 		public ConfluenceDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
 		    IConfluenceConfiguration confluenceConfiguration,
 		    IConfluenceLanguage confluenceLanguage,
             Func<Owned<PleaseWaitForm>> pleaseWaitFormFactory
             ) : base(coreConfiguration, greenshotLanguage)
         {
+            _exportNotification = exportNotification;
             _confluenceConfiguration = confluenceConfiguration;
             _confluenceLanguage = confluenceLanguage;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
@@ -94,10 +98,11 @@ namespace Greenshot.Addon.Confluence
 	    private ConfluenceDestination(
 	        ICoreConfiguration coreConfiguration,
 	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification,
 	        IConfluenceConfiguration confluenceConfiguration,
 	        IConfluenceLanguage confluenceLanguage,
 	        Func<Owned<PleaseWaitForm>> pleaseWaitFormFactory,
-            Content page) : this(coreConfiguration, greenshotLanguage, confluenceConfiguration, confluenceLanguage, pleaseWaitFormFactory)
+            Content page) : this(coreConfiguration, greenshotLanguage, exportNotification, confluenceConfiguration, confluenceLanguage, pleaseWaitFormFactory)
 	    {
 	        _page = page;
 	    }
@@ -131,7 +136,7 @@ namespace Greenshot.Addon.Confluence
 			}
 			foreach (var currentPage in currentPages)
 			{
-				yield return new ConfluenceDestination(CoreConfiguration, GreenshotLanguage, _confluenceConfiguration, _confluenceLanguage, _pleaseWaitFormFactory, currentPage);
+				yield return new ConfluenceDestination(CoreConfiguration, GreenshotLanguage, _exportNotification,_confluenceConfiguration, _confluenceLanguage, _pleaseWaitFormFactory, currentPage);
 			}
 		}
 
@@ -176,13 +181,13 @@ namespace Greenshot.Addon.Confluence
 					exportInformation.ErrorMessage = errorMessage;
 				}
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 
 		private bool Upload(ISurface surfaceToUpload, Content page, string filename, out string errorMessage)
 		{
-			var outputSettings = new SurfaceOutputSettings(_confluenceConfiguration.UploadFormat, _confluenceConfiguration.UploadJpegQuality, _confluenceConfiguration.UploadReduceColors);
+			var outputSettings = new SurfaceOutputSettings(CoreConfiguration, _confluenceConfiguration.UploadFormat, _confluenceConfiguration.UploadJpegQuality, _confluenceConfiguration.UploadReduceColors);
 			errorMessage = null;
 			try
 			{

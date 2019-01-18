@@ -57,8 +57,7 @@ namespace Greenshot.Gfx
 	    {
 	        using (var tmpImage = Image.FromStream(stream, true, true))
 	        {
-	            var bitmap = tmpImage as Bitmap;
-	            if (bitmap == null)
+	            if (!(tmpImage is Bitmap bitmap))
 	            {
 	                return null;
 	            }
@@ -69,8 +68,6 @@ namespace Greenshot.Gfx
 
         static BitmapHelper()
 		{
-			
-
 			// Fallback
 			StreamConverters[""] = FromStreamReader;
 
@@ -920,7 +917,7 @@ namespace Greenshot.Gfx
         /// <param name="dpi">double with the dpi value</param>
         /// <param name="baseSize">the base size of the icon, default is 16</param>
         /// <returns>Bitmap</returns>
-        public static Bitmap ScaleIconForDisplaying(this Bitmap original, double dpi, int baseSize = 16)
+        public static Bitmap ScaleIconForDisplaying(this Bitmap original, uint dpi, int baseSize = 16)
 		{
 			if (original == null)
 			{

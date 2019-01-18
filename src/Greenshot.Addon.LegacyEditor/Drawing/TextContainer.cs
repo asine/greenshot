@@ -21,7 +21,6 @@
 
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -32,6 +31,9 @@ using Dapplo.Windows.Common.Structs;
 using Greenshot.Addon.LegacyEditor.Drawing.Fields;
 using Greenshot.Addon.LegacyEditor.Memento;
 using Greenshot.Addons.Interfaces.Drawing;
+#if DEBUG
+using System.Diagnostics;
+#endif
 
 namespace Greenshot.Addon.LegacyEditor.Drawing
 {
@@ -88,7 +90,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
             }
         }
 
-        public TextContainer(Surface parent) : base(parent)
+        public TextContainer(Surface parent, IEditorConfiguration editorConfiguration) : base(parent, editorConfiguration)
         {
             Init();
         }
@@ -168,7 +170,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 
         public void FitToText()
         {
-            Size textSize = TextRenderer.MeasureText(text, _font);
+            var textSize = TextRenderer.MeasureText(text, _font);
             int lineThickness = GetFieldValueAsInt(FieldTypes.LINE_THICKNESS);
             Width = textSize.Width + lineThickness;
             Height = textSize.Height + lineThickness;
@@ -288,7 +290,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
             {
                 return;
             }
-            Color lc = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
+            var lc = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
             if (lc.R > 203 && lc.G > 203 && lc.B > 203)
             {
                 _textBox.BackColor = Color.FromArgb(51, 51, 51);
@@ -331,7 +333,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 
         private Font CreateFont(string fontFamilyName, bool fontBold, bool fontItalic, float fontSize)
         {
-            FontStyle fontStyle = FontStyle.Regular;
+            var fontStyle = FontStyle.Regular;
 
             bool hasStyle = false;
             using (var fontFamily = new FontFamily(fontFamilyName))
@@ -444,7 +446,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
                 lineWidth = 1;
                 correction = -1;
             }
-            NativeRect absRectangle = new NativeRect(Left, Top, Width, Height).Normalize();
+            var absRectangle = new NativeRect(Left, Top, Width, Height).Normalize();
             _textBox.Left = absRectangle.Left + lineWidth;
             _textBox.Top = absRectangle.Top + lineWidth;
             if (lineThickness <= 1)
@@ -534,8 +536,8 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
             graphics.PixelOffsetMode = PixelOffsetMode.None;
             graphics.TextRenderingHint = TextRenderingHint.SystemDefault;
 
-            NativeRect rect = new NativeRect(Left, Top, Width, Height).Normalize();
-            if (Selected && rm == RenderMode.EDIT)
+            var rect = new NativeRect(Left, Top, Width, Height).Normalize();
+            if (Selected && rm == RenderMode.Edit)
             {
                 DrawSelectionBorder(graphics, rect);
             }
@@ -547,9 +549,9 @@ namespace Greenshot.Addon.LegacyEditor.Drawing
 
             // we only draw the shadow if there is no background
             bool shadow = GetFieldValueAsBool(FieldTypes.SHADOW);
-            Color fillColor = GetFieldValueAsColor(FieldTypes.FILL_COLOR);
+            var fillColor = GetFieldValueAsColor(FieldTypes.FILL_COLOR);
             int lineThickness = GetFieldValueAsInt(FieldTypes.LINE_THICKNESS);
-            Color lineColor = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
+            var lineColor = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
             bool drawShadow = shadow && (fillColor == Color.Transparent || fillColor == Color.Empty);
 
             DrawText(graphics, rect, lineThickness, lineColor, drawShadow, _stringFormat, text, _font);

@@ -21,6 +21,8 @@
 
 #endregion
 
+#if !NETCOREAPP3_0
+
 #region Usings
 
 using System;
@@ -32,12 +34,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Dapplo.Addons;
-using Dapplo.Ini;
 using Dapplo.Log;
 using Greenshot.Addons.Components;
-using Greenshot.Addons.Controls;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Core.Enums;
 using Greenshot.Forms;
 using Greenshot.Helpers;
 using Application = System.Windows.Application;
@@ -50,15 +51,16 @@ namespace Greenshot.Components
     /// This startup action starts the Greenshot "server", which allows to open files etc.
     /// </summary>
     [ServiceBehavior(InstanceContextMode = InstanceContextMode.Single)]
-    [ServiceOrder(GreenshotStartupOrder.Server)]
+    [Service(nameof(GreenshotServerAction), nameof(MainFormStartup))]
     public class GreenshotServerAction : IGreenshotContract, IStartupAsync, IShutdownAsync
     {
         private static readonly LogSource Log = new LogSource();
         private readonly ICoreConfiguration _coreConfiguration;
         private readonly MainForm _mainForm;
-        private readonly HotkeyHandler _hotkeyHandler;
+        private readonly HotkeyService _hotkeyService;
         private readonly DestinationHolder _destinationHolder;
         private ServiceHost _host;
+        private CaptureSupportInfo _captureSupportInfo;
 
         public static string Identity
         {
@@ -73,24 +75,28 @@ namespace Greenshot.Components
         public GreenshotServerAction(
             ICoreConfiguration coreConfiguration,
             MainForm mainForm,
-            HotkeyHandler hotkeyHandler,
-            DestinationHolder destinationHolder)
+            HotkeyService hotkeyService,
+            DestinationHolder destinationHolder,
+            CaptureSupportInfo captureSupportInfo)
         {
+            _captureSupportInfo = captureSupportInfo;
             _coreConfiguration = coreConfiguration;
             _mainForm = mainForm;
-            _hotkeyHandler = hotkeyHandler;
+            _hotkeyService = hotkeyService;
             _destinationHolder = destinationHolder;
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken = default)
+        /// <inheritdoc />
+        public Task StartupAsync(CancellationToken cancellationToken = default)
         {
+            // TODO: Test performance with Startup without async
             Log.Debug().WriteLine("Starting Greenshot server");
-            await Task.Factory.StartNew(() => {
+            return Task.Run(() => {
                 _host = new ServiceHost(this, new Uri("net.pipe://localhost/Greenshot"));
                 _host.AddServiceEndpoint(typeof(IGreenshotContract), new NetNamedPipeBinding(), "Greenshot_" + Identity);
                 _host.Open();
+                Log.Debug().WriteLine("Started Greenshot server");
             }, cancellationToken);
-            Log.Debug().WriteLine("Started Greenshot server");
         }
 
         public Task ShutdownAsync(CancellationToken cancellationToken = default)
@@ -100,7 +106,7 @@ namespace Greenshot.Components
             return Task.Factory.FromAsync((callback, stateObject) => _host.BeginClose(callback, stateObject), asyncResult => _host.EndClose(asyncResult), null);
         }
 
-        #region IGreenshotContract
+#region IGreenshotContract
 
         /// <inheritdoc />
         public void Exit()
@@ -114,16 +120,12 @@ namespace Greenshot.Components
             Log.Info().WriteLine("Reload requested");
             try
             {
-                IniConfig.Current?.ReloadAsync().Wait();
+                // TODO: Fix
+                //IniConfig.Current?.ReloadAsync().Wait();
                 _mainForm.Invoke((MethodInvoker)(() =>
                 {
                     // Even update language when needed, this should be done automatically :)
                     _mainForm.UpdateUi();
-
-                    // Make sure the current hotkeys are disabled
-                    HotkeyControl.UnregisterHotkeys();
-                    // and registered again (should be automated)
-                    _hotkeyHandler.RegisterHotkeys(true);
                 }));
             }
             catch (Exception ex)
@@ -138,7 +140,7 @@ namespace Greenshot.Components
             Log.Debug().WriteLine("Open file requested: {0}", filename);
             if (File.Exists(filename))
             {
-                CaptureHelper.CaptureFile(filename);
+                CaptureHelper.CaptureFile(_captureSupportInfo, filename);
             }
             else
             {
@@ -168,19 +170,20 @@ namespace Greenshot.Components
             switch (captureMode.ToLower())
             {
                 case "region":
-                    CaptureHelper.CaptureRegion(false, destination);
+                    CaptureHelper.CaptureRegion(_captureSupportInfo, false, destination);
                     break;
                 case "window":
-                    CaptureHelper.CaptureWindow(false, destination);
+                    CaptureHelper.CaptureWindow(_captureSupportInfo, false, destination);
                     break;
                 case "fullscreen":
-                    CaptureHelper.CaptureFullscreen(false, ScreenCaptureMode.FullScreen, destination);
+                    CaptureHelper.CaptureFullscreen(_captureSupportInfo, false, ScreenCaptureMode.FullScreen, destination);
                     break;
                 default:
                     Log.Warn().WriteLine("Unknown capture option");
                     break;
             }
         }
-        #endregion
+#endregion
     }
 }
+#endif

@@ -25,8 +25,8 @@ using System.Collections.Generic;
 using System.Windows;
 using Caliburn.Micro;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Extensions;
+using Greenshot.Core.Enums;
 
 namespace Greenshot.Addons.ViewModels
 {
@@ -94,6 +94,26 @@ namespace Greenshot.Addons.ViewModels
                 NotifyOfPropertyChange(nameof(AreSettingsEnabled));
                 NotifyOfPropertyChange(nameof(FileConfiguration));
                 NotifyOfPropertyChange(nameof(OwnSettingsVisibility));
+            }
+        }
+
+        /// <summary>
+        /// This opens the directory selection dialog
+        /// </summary>
+        public void SelectOutputPath()
+        {
+            using (var folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                // Get the storage location and replace the environment variables
+                folderBrowserDialog.SelectedPath = FilenameHelper.FillVariables(CoreConfiguration.OutputFilePath, false);
+                if (folderBrowserDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    // Only change if there is a change, otherwise we might overwrite the environment variables
+                    if (folderBrowserDialog.SelectedPath != null && !folderBrowserDialog.SelectedPath.Equals(FilenameHelper.FillVariables(CoreConfiguration.OutputFilePath, false)))
+                    {
+                        CoreConfiguration.OutputFilePath = folderBrowserDialog.SelectedPath;
+                    }
+                }
             }
         }
 

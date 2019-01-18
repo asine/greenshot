@@ -34,12 +34,11 @@ using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
 using Greenshot.Addons;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx.Effects;
 using Greenshot.Gfx.Legacy;
-using LangKey = Greenshot.Configuration.LangKey;
 
 #endregion
 
@@ -131,9 +130,10 @@ namespace Greenshot.Helpers
 			catch (Exception e)
 			{
 				Log.Error().WriteLine(e, "An error ocurred while trying to print");
-				MessageBox.Show(Language.GetString(LangKey.print_error), Language.GetString(LangKey.error));
-			}
-			return returnPrinterSettings;
+                // TODO: Translation
+                //MessageBox.Show(Language.GetString(LangKey.print_error), Language.GetString(LangKey.error));
+            }
+            return returnPrinterSettings;
 		}
 
 		/// <summary>
@@ -164,9 +164,10 @@ namespace Greenshot.Helpers
 		    catch (Exception e)
 		    {
 		        Log.Error().WriteLine(e, "An error ocurred while trying to print");
-		        MessageBox.Show(Language.GetString(LangKey.print_error), Language.GetString(LangKey.error));
-		    }
-		    return returnPrinterSettings;
+                // TODO: Translation
+                //MessageBox.Show(Language.GetString(LangKey.print_error), Language.GetString(LangKey.error));
+            }
+            return returnPrinterSettings;
 		}
 
 		private bool IsColorPrint()
@@ -194,7 +195,7 @@ namespace Greenshot.Helpers
 		private void DrawImageForPrint(object sender, PrintPageEventArgs e)
 		{
 			// Create the output settins
-			var printOutputSettings = new SurfaceOutputSettings(OutputFormats.png, 100, false);
+			var printOutputSettings = new SurfaceOutputSettings(_coreConfig, OutputFormats.png, 100, false);
 
 			ApplyEffects(printOutputSettings);
 

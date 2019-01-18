@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <TargetFrameworks>net471;netcoreapp3.0</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net471' ">
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Net.Http.WebRequest" />
+    <Reference Include="System.Runtime.Caching" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Windows" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="Accessibility" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Dapplo.Windows">
+      <Version>0.8.9</Version>
+    </PackageReference>
+    <PackageReference Include="Dapplo.Windows.Com">
+      <Version>0.8.9</Version>
+    </PackageReference>
+    <PackageReference Include="Unofficial.Microsoft.mshtml" Version="7.0.3300" />
+  </ItemGroup>
+  
+    <ItemGroup>
+    <ProjectReference Include="..\Greenshot.Addons\Greenshot.Addons.csproj">
+      <Project>{5b924697-4dcd-4f98-85f1-105cb84b7341}</Project>
+      <Name>Greenshot.Addons</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Greenshot.Core\Greenshot.Core.csproj">
+      <Project>{bf35190d-b2a7-4cfa-b397-51cb384cf0d7}</Project>
+      <Name>Greenshot.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Greenshot.Gfx\Greenshot.Gfx.csproj">
+      <Project>{f041c685-eb96-4ed1-9ace-0f5bd836610f}</Project>
+      <Name>Greenshot.Gfx</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

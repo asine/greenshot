@@ -25,7 +25,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CommonServiceLocator;
 using Dapplo.Log;
 using Dapplo.Windows.Kernel32;
 using Greenshot.Addons.Components;
@@ -40,11 +39,14 @@ namespace Greenshot.Components
     {
         private static readonly LogSource Log = new LogSource();
         private readonly ICoreConfiguration _coreConfiguration;
+        private readonly DestinationHolder _destinationHolder;
 
-        public CommandlineParser(ICoreConfiguration coreConfiguration)
+        public CommandlineParser(
+            ICoreConfiguration coreConfiguration,
+            DestinationHolder destinationHolder)
         {
             _coreConfiguration = coreConfiguration;
-
+            _destinationHolder = destinationHolder;
         }
 
         /// <summary>
@@ -125,7 +127,7 @@ namespace Greenshot.Components
                     {
                         Log.Info().WriteLine("Sending all instances the exit command.");
                         // Pass Exit to running instance, if any
-                        GreenshotClient.Exit();
+                        //GreenshotClient.Exit();
                     }
                     catch (Exception e)
                     {
@@ -144,7 +146,7 @@ namespace Greenshot.Components
                     try
                     {
                         // Update running instances
-                        GreenshotClient.ReloadConfig();
+                        //GreenshotClient.ReloadConfig();
                     }
                     catch (Exception ex)
                     {
@@ -211,12 +213,12 @@ namespace Greenshot.Components
                             "External Command like MS Paint",
                             Environment.NewLine
                             );
-                        foreach (var destination in ServiceLocator.Current.GetAllInstances<IDestination>())
+                        foreach (var destination in _destinationHolder.AllDestinations)
                         {
                             helpOutput.AppendFormat(
                                     "\t\t{0,-16}\t==>\t{1}{2}",
-                                    destination.Designation,
-                                    destination.Description,
+                                    destination.Metadata.Designation,
+                                    destination.Value.Description,
                                     Environment.NewLine
                                     );
                         }
@@ -251,7 +253,7 @@ namespace Greenshot.Components
                     }
                     else
                     {
-                        GreenshotClient.Capture(arguments[1]);
+                        //GreenshotClient.Capture(arguments[1]);
                     }
                     // TODO:
                     //FreeMutex();
@@ -267,7 +269,7 @@ namespace Greenshot.Components
                 // We didn't initialize the language yet, do it here just for the message box
                 if (filesToOpen.Count > 0)
                 {
-                    GreenshotClient.OpenFiles(filesToOpen);
+                    //GreenshotClient.OpenFiles(filesToOpen);
                 }
                 else
                 {

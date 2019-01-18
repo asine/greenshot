@@ -32,7 +32,7 @@ using Dapplo.Confluence;
 using Dapplo.Confluence.Entities;
 using Dapplo.Confluence.Query;
 using Dapplo.Log;
-using Greenshot.Addons.Core;
+using Greenshot.Addon.InternetExplorer;
 
 #endregion
 
@@ -50,7 +50,7 @@ namespace Greenshot.Addon.Confluence
 			var pages = new List<Content>();
 			var pageIdRegex = new Regex(@"pageId=(\d+)");
 			var spacePageRegex = new Regex(@"\/display\/([^\/]+)\/([^#]+)");
-			foreach (var browserurl in IEHelper.GetIEUrls().Distinct())
+			foreach (var browserurl in InternetExplorerHelper.GetIEUrls().Distinct())
 			{
 				string url;
 				try
@@ -80,7 +80,7 @@ namespace Greenshot.Addon.Confluence
 						}
 						if (!pageDouble)
 						{
-							var page = await confluenceConnector.Content.GetAsync(pageId);
+							var page = await confluenceConnector.Content.GetAsync(pageId).ConfigureAwait(false);
 							Log.Debug().WriteLine("Adding page {0}", page.Title);
 							pages.Add(page);
 						}
@@ -114,18 +114,20 @@ namespace Greenshot.Addon.Confluence
 			        var pageDouble = false;
 			        foreach (var page in pages)
 			        {
-			            if (page.Title.Equals(title))
+			            if (!page.Title.Equals(title))
 			            {
-			                Log.Debug().WriteLine("Skipping double page with title {0}", title);
-			                pageDouble = true;
-			                break;
+			                continue;
 			            }
+
+			            Log.Debug().WriteLine("Skipping double page with title {0}", title);
+			            pageDouble = true;
+			            break;
 			        }
 			        if (!pageDouble)
 			        {
 			            var foundContents = await confluenceConnector.Content.SearchAsync(Where.And(Where.Space.Is(space), Where.Title.Is(title)));
 			            var page = foundContents.FirstOrDefault();
-			            if (page != null)
+			            if (page == null)
 			            {
                             continue;
 			            }

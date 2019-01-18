@@ -33,6 +33,7 @@ using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
+using Greenshot.Addons.Resources;
 using Greenshot.Helpers;
 
 #endregion
@@ -46,23 +47,27 @@ namespace Greenshot.Destinations
     public class PrinterDestination : AbstractDestination
 	{
 	    private readonly IGreenshotLanguage _greenshotLanguage;
+	    private readonly ExportNotification _exportNotification;
 	    private readonly Func<ISurface, ICaptureDetails, Owned<PrintHelper>> _printHelperFactory;
 	    private readonly string _printerName;
 
 	    public PrinterDestination(ICoreConfiguration coreConfiguration,
 	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification,
 	        Func<ISurface, ICaptureDetails, Owned<PrintHelper>> printHelperFactory
         ) : base(coreConfiguration, greenshotLanguage)
-	    {
+        {
 	        _greenshotLanguage = greenshotLanguage;
+	        _exportNotification = exportNotification;
 	        _printHelperFactory = printHelperFactory;
 	    }
 
         protected PrinterDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
             Func<ISurface, ICaptureDetails, Owned<PrintHelper>> printHelperFactory,
-            string printerName) : this(coreConfiguration, greenshotLanguage, printHelperFactory)
+            string printerName) : this(coreConfiguration, greenshotLanguage, exportNotification, printHelperFactory)
 		{
 			_printerName = printerName;
 		}
@@ -82,7 +87,7 @@ namespace Greenshot.Destinations
 
 	    public override Keys EditorShortcutKeys => Keys.Control | Keys.P;
 
-	    public override Bitmap DisplayIcon => GreenshotResources.GetBitmap("Printer.Image");
+	    public override Bitmap DisplayIcon => GreenshotResources.Instance.GetBitmap("Printer.Image");
 
 	    public override bool IsDynamic => true;
 
@@ -114,7 +119,7 @@ namespace Greenshot.Destinations
 			});
 			foreach (var printer in printers)
 			{
-				yield return new PrinterDestination(CoreConfiguration, GreenshotLanguage, _printHelperFactory, printer);
+				yield return new PrinterDestination(CoreConfiguration, GreenshotLanguage, _exportNotification, _printHelperFactory, printer);
 			}
 		}
 
@@ -157,8 +162,8 @@ namespace Greenshot.Destinations
 				exportInformation.ExportMade = true;
 			}
 
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 	}
 }

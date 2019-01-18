@@ -24,6 +24,9 @@
 using Autofac;
 using Dapplo.Addons;
 using Dapplo.CaliburnMicro.Configuration;
+using Dapplo.Config.Ini;
+using Dapplo.Config.Language;
+using Greenshot.Addon.LegacyEditor.Configuration.Impl;
 using Greenshot.Addon.LegacyEditor.Controls;
 using Greenshot.Addon.LegacyEditor.Drawing;
 using Greenshot.Addon.LegacyEditor.Forms;
@@ -38,6 +41,18 @@ namespace Greenshot.Addon.LegacyEditor
     {
         protected override void Load(ContainerBuilder builder)
         {
+            builder
+                .RegisterType<EditorConfigurationImpl>()
+                .As<IEditorConfiguration>()
+                .As<IIniSection>()
+                .SingleInstance();
+
+            builder
+                .RegisterType<EditorLanguageImpl>()
+                .As<IEditorLanguage>()
+                .As<ILanguage>()
+                .SingleInstance();
+
             builder
                 .RegisterType<EditorDestination>()
                 .As<IDestination>()

@@ -32,29 +32,49 @@ using Caliburn.Micro;
 using Dapplo.CaliburnMicro.Extensions;
 using Dapplo.Log;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.Imgur.Configuration;
 using Greenshot.Addon.Imgur.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Extensions;
 
 namespace Greenshot.Addon.Imgur.ViewModels
 {
+    /// <summary>
+    /// This is the view model for the history
+    /// </summary>
     public sealed class ImgurHistoryViewModel : Screen
     {
         private static readonly LogSource Log = new LogSource();
+        private readonly ImgurApi _imgurApi;
 
         /// <summary>
         ///     Here all disposables are registered, so we can clean the up
         /// </summary>
         private CompositeDisposable _disposables;
 
+        /// <summary>
+        /// The configuration used in the view
+        /// </summary>
         public IImgurConfiguration ImgurConfiguration { get; }
 
-        public ImgurApi ImgurApi { get; }
 
+        /// <summary>
+        /// The translations used in the view
+        /// </summary>
         public IImgurLanguage ImgurLanguage { get; }
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public IGreenshotLanguage GreenshotLanguage { get; }
 
+        /// <summary>
+        /// Constructor which accepts the dependencies for this class
+        /// </summary>
+        /// <param name="imgurConfiguration">IImgurConfiguration</param>
+        /// <param name="imgurApi">ImgurApi</param>
+        /// <param name="imgurLanguage">IImgurLanguage</param>
+        /// <param name="greenshotLanguage">IGreenshotLanguage</param>
         public ImgurHistoryViewModel(
             IImgurConfiguration imgurConfiguration,
             ImgurApi imgurApi,
@@ -63,7 +83,7 @@ namespace Greenshot.Addon.Imgur.ViewModels
             )
         {
             ImgurConfiguration = imgurConfiguration;
-            ImgurApi = imgurApi;
+            _imgurApi = imgurApi;
             ImgurLanguage = imgurLanguage;
             GreenshotLanguage = greenshotLanguage;
         }
@@ -72,6 +92,7 @@ namespace Greenshot.Addon.Imgur.ViewModels
         /// </summary>
         public ObservableCollection<ImgurImage> ImgurHistory { get; } = new BindableCollection<ImgurImage>();
 
+        /// <inheritdoc />
         protected override void OnActivate()
         {
              // Prepare disposables
@@ -81,9 +102,10 @@ namespace Greenshot.Addon.Imgur.ViewModels
             {
                 ImgurLanguage.CreateDisplayNameBinding(this, nameof(IImgurLanguage.History))
             };
-            LoadHistory();
+            _ = LoadHistory();
         }
 
+        /// <inheritdoc />
         protected override void OnDeactivate(bool close)
         {
             _disposables.Dispose();
@@ -96,7 +118,7 @@ namespace Greenshot.Addon.Imgur.ViewModels
         private async Task LoadHistory(CancellationToken cancellationToken = default)
         {
             // Load the ImUr history
-            foreach (string hash in ImgurConfiguration.ImgurUploadHistory.Keys)
+            foreach (var hash in ImgurConfiguration.ImgurUploadHistory.Keys)
             {
                 if (ImgurHistory.Any(imgurInfo => imgurInfo.Data.Id == hash))
                 {
@@ -110,10 +132,10 @@ namespace Greenshot.Addon.Imgur.ViewModels
                 }
                 try
                 {
-                    var imgurInfo = await ImgurApi.RetrieveImgurInfoAsync(hash, ImgurConfiguration.ImgurUploadHistory[hash], cancellationToken).ConfigureAwait(true);
+                    var imgurInfo = await _imgurApi.RetrieveImgurInfoAsync(hash, ImgurConfiguration.ImgurUploadHistory[hash], cancellationToken).ConfigureAwait(true);
                     if (imgurInfo != null)
                     {
-                        await ImgurApi.RetrieveImgurThumbnailAsync(imgurInfo, cancellationToken).ConfigureAwait(true);
+                        await _imgurApi.RetrieveImgurThumbnailAsync(imgurInfo, cancellationToken).ConfigureAwait(true);
                         ImgurConfiguration.RuntimeImgurHistory.Add(hash, imgurInfo);
                         // Already loaded, only add it to the view
                         ImgurHistory.Add(imgurInfo);
@@ -131,17 +153,32 @@ namespace Greenshot.Addon.Imgur.ViewModels
             }
         }
 
+        /// <summary>
+        /// The selected Imgur entry
+        /// </summary>
         public ImgurImage SelectedImgur { get; private set; }
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public bool CanDelete => true;
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public async Task Delete()
         {
-            await ImgurApi.DeleteImgurImageAsync(SelectedImgur).ConfigureAwait(true);
+            await _imgurApi.DeleteImgurImageAsync(SelectedImgur).ConfigureAwait(true);
         }
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public bool CanCopyToClipboard => true;
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public void CopyToClipboard()
         {
             using (var clipboardAccessToken = ClipboardNative.Access())
@@ -151,6 +188,9 @@ namespace Greenshot.Addon.Imgur.ViewModels
             }
         }
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public void ClearHistory()
         {
             ImgurConfiguration.RuntimeImgurHistory.Clear();
@@ -158,6 +198,9 @@ namespace Greenshot.Addon.Imgur.ViewModels
             ImgurHistory.Clear();
         }
 
+        /// <summary>
+        /// Used from the View
+        /// </summary>
         public void Show()
         {
             var link = SelectedImgur.Data.Link?.AbsoluteUri;

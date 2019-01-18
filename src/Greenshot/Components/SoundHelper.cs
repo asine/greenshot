@@ -25,13 +25,14 @@
 
 using System;
 using System.IO;
-using System.Reflection;
-using System.Resources;
 using System.Runtime.InteropServices;
 using Dapplo.Addons;
+using Dapplo.CaliburnMicro;
 using Dapplo.Log;
 using Dapplo.Windows.Multimedia;
+using Dapplo.Windows.Multimedia.Enums;
 using Greenshot.Addons.Core;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -41,7 +42,7 @@ namespace Greenshot.Components
 	///     Create to fix the sometimes wrongly played sample, especially after first start from IDE
 	///     See: http://www.codeproject.com/KB/audio-video/soundplayerbug.aspx?msg=2487569
 	/// </summary>
-	[ServiceOrder(GreenshotStartupOrder.Sound)]
+	[Service(nameof(SoundHelper), nameof(CaliburnServices.ConfigurationService))]
 	public class SoundHelper : IStartup, IShutdown
 	{
 	    private readonly ICoreConfiguration _coreConfiguration;
@@ -57,7 +58,8 @@ namespace Greenshot.Components
 	        _instance = this;
         }
 
-		public void Start()
+	    /// <inheritdoc />
+		public void Startup()
 		{
             if (_gcHandle != null)
 		    {
@@ -66,8 +68,7 @@ namespace Greenshot.Components
 
 		    try
 		    {
-		        var resources = new ResourceManager("Greenshot.Sounds", Assembly.GetExecutingAssembly());
-		        _soundBuffer = (byte[]) resources.GetObject("camera");
+		        _soundBuffer = GreenshotResources.Instance.GetBytes("camera.wav", GetType());
 
 		        if (_coreConfiguration.NotificationSound != null && _coreConfiguration.NotificationSound.EndsWith(".wav"))
 		        {

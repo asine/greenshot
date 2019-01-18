@@ -34,7 +34,6 @@ using System.Reflection;
 using System.Windows.Forms;
 using Autofac.Features.OwnedInstances;
 using Caliburn.Micro;
-using Dapplo.Ini;
 using Dapplo.Windows.Desktop;
 using Greenshot.Destinations;
 using Greenshot.Help;
@@ -46,27 +45,31 @@ using Dapplo.Windows.App;
 using Dapplo.Windows.Clipboard;
 using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.DesktopWindowsManager;
-using Dapplo.Windows.Dpi.Enums;
 using Dapplo.Windows.Dpi.Forms;
 using Dapplo.Windows.Kernel32;
+using Greenshot.Addon.InternetExplorer;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Controls;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Extensions;
-using Greenshot.Addons.Interfaces;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx;
 using Greenshot.Ui.Configuration.ViewModels;
 using Message = System.Windows.Forms.Message;
 using Screen = System.Windows.Forms.Screen;
+using Dapplo.Config.Ini;
+using Dapplo.Windows.User32;
+using Greenshot.Addons.Resources;
+using Greenshot.Components;
 
 #endregion
 
 namespace Greenshot.Forms
 {
     /// <summary>
-    ///     Description of MainForm.
+    ///     The MainForm provides the "shell" of the application
     /// </summary>
     public partial class MainForm : GreenshotForm
     {
@@ -74,6 +77,7 @@ namespace Greenshot.Forms
         private readonly ICoreConfiguration _coreConfiguration;
         private readonly IWindowManager _windowManager;
         private readonly IGreenshotLanguage _greenshotLanguage;
+        private readonly InternetExplorerCaptureHelper _internetExplorerCaptureHelper;
         private readonly Func<Owned<ConfigViewModel>> _configViewModelFactory;
         private readonly Func<Owned<AboutForm>> _aboutFormFactory;
 
@@ -81,6 +85,8 @@ namespace Greenshot.Forms
         private readonly Timer _doubleClickTimer = new Timer();
 
         private readonly DestinationHolder _destinationHolder;
+        private readonly CaptureSupportInfo _captureSupportInfo;
+
         // Thumbnail preview
         private ThumbnailForm _thumbnailForm;
 
@@ -89,16 +95,21 @@ namespace Greenshot.Forms
         public MainForm(ICoreConfiguration coreConfiguration,
             IWindowManager windowManager,
             IGreenshotLanguage greenshotLanguage,
+            InternetExplorerCaptureHelper internetExplorerCaptureHelper,
             Func<Owned<ConfigViewModel>> configViewModelFactory,
             Func<Owned<AboutForm>> aboutFormFactory,
-            DestinationHolder destinationHolder) : base(greenshotLanguage)
+            DestinationHolder destinationHolder,
+            CaptureSupportInfo captureSupportInfo
+            ) : base(greenshotLanguage)
         {
             _coreConfiguration = coreConfiguration;
             _windowManager = windowManager;
             _greenshotLanguage = greenshotLanguage;
+            _internetExplorerCaptureHelper = internetExplorerCaptureHelper;
             _configViewModelFactory = configViewModelFactory;
             _aboutFormFactory = aboutFormFactory;
             _destinationHolder = destinationHolder;
+            _captureSupportInfo = captureSupportInfo;
             Instance = this;
         }
 
@@ -119,7 +130,8 @@ namespace Greenshot.Forms
                 ex.Data.Add("more information here", "http://support.microsoft.com/kb/943140");
                 throw;
             }
-            notifyIcon.Icon = GreenshotResources.GetGreenshotIcon();
+
+            notifyIcon.Icon = GreenshotResources.Instance.GetGreenshotIcon();
 
             // Disable access to the settings, for feature #3521446
             contextmenu_settings.Visible = !_coreConfiguration.DisableSettings;
@@ -277,7 +289,7 @@ namespace Greenshot.Forms
 
                     if (File.Exists(_coreConfiguration.OutputFileAsFullpath))
                     {
-                        CaptureHelper.CaptureFile(_coreConfiguration.OutputFileAsFullpath, _destinationHolder.SortedActiveDestinations.Find("Editor"));
+                        CaptureHelper.CaptureFile(_captureSupportInfo, _coreConfiguration.OutputFileAsFullpath, _destinationHolder.SortedActiveDestinations.Find("Editor"));
                     }
                     break;
                 case ClickActions.OPEN_SETTINGS:
@@ -367,7 +379,6 @@ namespace Greenshot.Forms
             
         }
 
-
         /// <summary>
         /// Setup the Bitmap scaling (for icons)
         /// </summary>
@@ -375,28 +386,21 @@ namespace Greenshot.Forms
         {
             ContextMenuDpiHandler = contextMenu.AttachDpiHandler();
 
-            var dpiChangeSubscription = FormDpiHandler.OnDpiChangeInfo.Subscribe(info =>
+            var dpiChangeSubscription = FormDpiHandler.OnDpiChanged.Subscribe(info =>
             {
-                switch (info.DpiChangeEventType)
-                {
-                    case DpiChangeEventTypes.Before:
-                        // Change the ImageScalingSize before setting the bitmaps
-                        var width = DpiHandler.ScaleWithDpi(_coreConfiguration.IconSize.Width, info.NewDpi);
-                        var size = new Size(width, width);
-                        contextMenu.SuspendLayout();
-                        contextMenu.ImageScalingSize = size;
-                        contextmenu_quicksettings.Size = new Size(170, width + 8);
-                        break;
-                    case DpiChangeEventTypes.After:
-                        // Redraw the form
-                        contextMenu.ResumeLayout(true);
-                        contextMenu.Refresh();
-                        notifyIcon.Icon = GreenshotResources.GetGreenshotIcon();
-                        break;
-                }
+                // Change the ImageScalingSize before setting the bitmaps
+                var width = DpiHandler.ScaleWithDpi(_coreConfiguration.IconSize.Width, info.NewDpi);
+                var height = DpiHandler.ScaleWithDpi(_coreConfiguration.IconSize.Height, info.NewDpi);
+                var size = new Size(width, height);
+                contextMenu.SuspendLayout();
+                contextMenu.ImageScalingSize = size;
+                contextmenu_quicksettings.Size = new Size(170, width + 8);
+                contextMenu.ResumeLayout(true);
+                contextMenu.Refresh();
+                notifyIcon.Icon = GreenshotResources.Instance.GetGreenshotIcon();
             });
 
-            var contextMenuResourceScaleHandler = BitmapScaleHandler.WithComponentResourceManager(ContextMenuDpiHandler, GetType(), (bitmap, dpi) => bitmap.ScaleIconForDisplaying(dpi));
+            var contextMenuResourceScaleHandler = BitmapScaleHandler.Create<string>(ContextMenuDpiHandler, (imageName, dpi) => GreenshotResources.Instance.GetBitmap(imageName, GetType()), (bitmap, dpi) => bitmap.ScaleIconForDisplaying(dpi));
 
             contextMenuResourceScaleHandler.AddTarget(contextmenu_capturewindow, "contextmenu_capturewindow.Image");
             contextMenuResourceScaleHandler.AddTarget(contextmenu_capturearea, "contextmenu_capturearea.Image");
@@ -457,15 +461,15 @@ namespace Greenshot.Forms
 
             if (File.Exists(openFileDialog.FileName))
             {
-                CaptureHelper.CaptureFile(openFileDialog.FileName);
+                CaptureHelper.CaptureFile(_captureSupportInfo, openFileDialog.FileName);
             }
         }
         
-        private void CaptureIE()
+        private void CaptureIe()
         {
             if (_coreConfiguration.IECapture)
             {
-                CaptureHelper.CaptureIe(true, null);
+                CaptureHelper.CaptureIe(_captureSupportInfo, true, null);
             }
         }
 
@@ -484,7 +488,7 @@ namespace Greenshot.Forms
             // IE context menu code
             try
             {
-                if (_coreConfiguration.IECapture && IeCaptureHelper.IsIeRunning())
+                if (_coreConfiguration.IECapture && _internetExplorerCaptureHelper.IsIeRunning())
                 {
                     contextmenu_captureie.Enabled = true;
                     contextmenu_captureiefromlist.Enabled = true;
@@ -519,8 +523,7 @@ namespace Greenshot.Forms
                 now.Month == 3 && now.Day > 13 && now.Day < 21)
             {
                 // birthday
-                var resources = new ComponentResourceManager(typeof(MainForm));
-                contextmenu_donate.Image = (Image) resources.GetObject("contextmenu_present.Image");
+                contextmenu_donate.Image = GreenshotResources.Instance.GetBitmap("contextmenu_present.Image", GetType());
             }
         }
 
@@ -542,7 +545,7 @@ namespace Greenshot.Forms
             }
             try
             {
-                var tabs = IeCaptureHelper.GetBrowserTabs();
+                var tabs = _internetExplorerCaptureHelper.GetBrowserTabs();
                 contextmenu_captureiefromlist.DropDownItems.Clear();
                 if (tabs.Count > 0)
                 {
@@ -602,33 +605,33 @@ namespace Greenshot.Forms
             {
                 return;
             }
-            var allScreensBounds = WindowCapture.GetScreenBounds();
+            var allScreensBounds = DisplayInfo.ScreenBounds;
 
             var captureScreenItem = new ToolStripMenuItem(_greenshotLanguage.ContextmenuCapturefullscreenAll);
-            captureScreenItem.Click += (o, args) => BeginInvoke((MethodInvoker) (() => CaptureHelper.CaptureFullscreen(false, ScreenCaptureMode.FullScreen)));
+            captureScreenItem.Click += (o, args) => BeginInvoke((MethodInvoker) (() => CaptureHelper.CaptureFullscreen(_captureSupportInfo, false, ScreenCaptureMode.FullScreen)));
             captureScreenMenuItem.DropDownItems.Add(captureScreenItem);
-            foreach (var screen in Screen.AllScreens)
+            foreach (var displayInfo in DisplayInfo.AllDisplayInfos)
             {
-                var screenToCapture = screen;
+                var screenToCapture = displayInfo;
                 var deviceAlignment = "";
-                if (screen.Bounds.Top == allScreensBounds.Top && screen.Bounds.Bottom != allScreensBounds.Bottom)
+                if (displayInfo.Bounds.Top == allScreensBounds.Top && displayInfo.Bounds.Bottom != allScreensBounds.Bottom)
                 {
                     deviceAlignment += " " + _greenshotLanguage.ContextmenuCapturefullscreenTop;
                 }
-                else if (screen.Bounds.Top != allScreensBounds.Top && screen.Bounds.Bottom == allScreensBounds.Bottom)
+                else if (displayInfo.Bounds.Top != allScreensBounds.Top && displayInfo.Bounds.Bottom == allScreensBounds.Bottom)
                 {
                     deviceAlignment += " " + _greenshotLanguage.ContextmenuCapturefullscreenBottom;
                 }
-                if (screen.Bounds.Left == allScreensBounds.Left && screen.Bounds.Right != allScreensBounds.Right)
+                if (displayInfo.Bounds.Left == allScreensBounds.Left && displayInfo.Bounds.Right != allScreensBounds.Right)
                 {
                     deviceAlignment += " " + _greenshotLanguage.ContextmenuCapturefullscreenLeft;
                 }
-                else if (screen.Bounds.Left != allScreensBounds.Left && screen.Bounds.Right == allScreensBounds.Right)
+                else if (displayInfo.Bounds.Left != allScreensBounds.Left && displayInfo.Bounds.Right == allScreensBounds.Right)
                 {
                     deviceAlignment += " " + _greenshotLanguage.ContextmenuCapturefullscreenRight;
                 }
                 captureScreenItem = new ToolStripMenuItem(deviceAlignment);
-                captureScreenItem.Click += (o, args) => BeginInvoke((MethodInvoker) (() => CaptureHelper.CaptureRegion(false, screenToCapture.Bounds)));
+                captureScreenItem.Click += (o, args) => BeginInvoke((MethodInvoker) (() => CaptureHelper.CaptureRegion(_captureSupportInfo, false, screenToCapture.Bounds)));
                 captureScreenMenuItem.DropDownItems.Add(captureScreenItem);
             }
         }
@@ -671,7 +674,7 @@ namespace Greenshot.Forms
             var window = captureWindowItem.Tag as IInteropWindow;
             if (_thumbnailForm == null)
             {
-                _thumbnailForm = new ThumbnailForm();
+                _thumbnailForm = new ThumbnailForm(_coreConfiguration);
             }
             _thumbnailForm.ShowThumbnail(window, captureWindowItem.GetCurrentParent().TopLevelControl);
         }
@@ -723,12 +726,12 @@ namespace Greenshot.Forms
 
         private void CaptureAreaToolStripMenuItemClick(object sender, EventArgs e)
         {
-            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureRegion(false); });
+            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureRegion(_captureSupportInfo, false); });
         }
 
         private void CaptureClipboardToolStripMenuItemClick(object sender, EventArgs e)
         {
-            BeginInvoke(new System.Action(() => CaptureHelper.CaptureClipboard()));
+            BeginInvoke(new System.Action(() => CaptureHelper.CaptureClipboard(_captureSupportInfo)));
         }
 
         private void OpenFileToolStripMenuItemClick(object sender, EventArgs e)
@@ -738,17 +741,17 @@ namespace Greenshot.Forms
 
         private void CaptureFullScreenToolStripMenuItemClick(object sender, EventArgs e)
         {
-            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureFullscreen(false, _coreConfiguration.ScreenCaptureMode); });
+            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureFullscreen(_captureSupportInfo, false, _coreConfiguration.ScreenCaptureMode); });
         }
 
         private void Contextmenu_capturelastregionClick(object sender, EventArgs e)
         {
-            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureLastRegion(false); });
+            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureLastRegion(_captureSupportInfo, false); });
         }
 
         private void Contextmenu_capturewindow_Click(object sender, EventArgs e)
         {
-            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureWindowInteractive(false); });
+            BeginInvoke((MethodInvoker) delegate { CaptureHelper.CaptureWindowInteractive(_captureSupportInfo, false); });
         }
 
         private void Contextmenu_capturewindowfromlist_Click(object sender, EventArgs e)
@@ -759,7 +762,7 @@ namespace Greenshot.Forms
                 try
                 {
                     var windowToCapture = (InteropWindow) clickedItem.Tag;
-                    CaptureHelper.CaptureWindow(windowToCapture);
+                    CaptureHelper.CaptureWindow(_captureSupportInfo, windowToCapture);
                 }
                 catch (Exception exception)
                 {
@@ -770,7 +773,7 @@ namespace Greenshot.Forms
 
         private void Contextmenu_captureie_Click(object sender, EventArgs e)
         {
-            CaptureIE();
+            CaptureIe();
         }
 
         private void Contextmenu_captureiefromlist_Click(object sender, EventArgs e)
@@ -791,7 +794,7 @@ namespace Greenshot.Forms
                 }
                 try
                 {
-                    IeCaptureHelper.ActivateIeTab(ieWindowToCapture, tabData.Value);
+                    _internetExplorerCaptureHelper.ActivateIeTab(ieWindowToCapture, tabData.Value);
                 }
                 catch (Exception exception)
                 {
@@ -799,7 +802,7 @@ namespace Greenshot.Forms
                 }
                 try
                 {
-                    CaptureHelper.CaptureIe(false, ieWindowToCapture);
+                    CaptureHelper.CaptureIe(_captureSupportInfo, false, ieWindowToCapture);
                 }
                 catch (Exception exception)
                 {
@@ -917,7 +920,7 @@ namespace Greenshot.Forms
             if (!_coreConfiguration.IsWriteProtected("Destinations"))
             {
                 // screenshot destination
-                selectList = new ToolStripMenuSelectList("destinations", true)
+                selectList = new ToolStripMenuSelectList(_coreConfiguration, "destinations", true)
                 {
                     Text = _greenshotLanguage.SettingsDestination
                 };
@@ -930,31 +933,48 @@ namespace Greenshot.Forms
                 contextmenu_quicksettings.DropDownItems.Add(selectList);
             }
 
+            var languageKeys = _greenshotLanguage.Keys().ToList();
             if (!_coreConfiguration.IsWriteProtected("WindowCaptureMode"))
             {
                 // Capture Modes
-                selectList = new ToolStripMenuSelectList("capturemodes", false)
+                selectList = new ToolStripMenuSelectList(_coreConfiguration,"capturemodes", false)
                 {
                     Text = _greenshotLanguage.SettingsWindowCaptureMode
                 };
                 var enumTypeName = typeof(WindowCaptureModes).Name;
                 foreach (WindowCaptureModes captureMode in Enum.GetValues(typeof(WindowCaptureModes)))
                 {
-                    selectList.AddItem(Language.GetString(enumTypeName + "." + captureMode), captureMode, _coreConfiguration.WindowCaptureMode == captureMode);
+                    var key = enumTypeName + "." + captureMode;
+                    if (languageKeys.Contains(key))
+                    {
+                        selectList.AddItem(_greenshotLanguage[key], captureMode, _coreConfiguration.WindowCaptureMode == captureMode);
+                    }
+                    else
+                    {
+                        Log.Warn().WriteLine("Missing translation for {0}", key);
+                    }
                 }
                 selectList.CheckedChanged += QuickSettingCaptureModeChanged;
                 contextmenu_quicksettings.DropDownItems.Add(selectList);
             }
 
             // print options
-            selectList = new ToolStripMenuSelectList("printoptions", true)
+            selectList = new ToolStripMenuSelectList(_coreConfiguration, "printoptions", true)
             {
                 Text = _greenshotLanguage.SettingsPrintoptions
             };
 
             foreach (var outputPrintIniValue in _coreConfiguration.GetIniValues().Values.Where(value => value.PropertyName.StartsWith("OutputPrint") && value.ValueType == typeof(bool) && !_coreConfiguration.IsWriteProtected(value.PropertyName)))
             {
-                selectList.AddItem(Language.GetString(outputPrintIniValue.PropertyName), outputPrintIniValue, (bool) outputPrintIniValue.Value);
+                var key = outputPrintIniValue.PropertyName;
+                if (languageKeys.Contains(key))
+                {
+                    selectList.AddItem(_greenshotLanguage[key], outputPrintIniValue, (bool)outputPrintIniValue.Value);
+                }
+                else
+                {
+                    Log.Warn().WriteLine("Missing translation for {0}", key);
+                }
             }
             if (selectList.DropDownItems.Count > 0)
             {
@@ -967,23 +987,37 @@ namespace Greenshot.Forms
             }
 
             // effects
-            selectList = new ToolStripMenuSelectList("effects", true)
+            selectList = new ToolStripMenuSelectList(_coreConfiguration, "effects", true)
             {
                 Text = _greenshotLanguage.SettingsVisualization
             };
 
-            var iniValue = _coreConfiguration["PlayCameraSound"];
+            var iniValue = _coreConfiguration.GetIniValue("PlayCameraSound");
             var languageKey = _coreConfiguration.GetTagValue(iniValue.PropertyName, ConfigTags.LanguageKey) as string;
 
             if (!_coreConfiguration.IsWriteProtected(iniValue.PropertyName))
             {
-                selectList.AddItem(Language.GetString(languageKey), iniValue, (bool) iniValue.Value);
+                if (languageKeys.Contains(languageKey))
+                {
+                    selectList.AddItem(_greenshotLanguage[languageKey], iniValue, (bool)iniValue.Value);
+                }
+                else
+                {
+                    Log.Warn().WriteLine("Missing translation for {0}", languageKey);
+                }
             }
-            iniValue = _coreConfiguration["ShowTrayNotification"];
+            iniValue = _coreConfiguration.GetIniValue("ShowTrayNotification");
             languageKey = _coreConfiguration.GetTagValue(iniValue.PropertyName, ConfigTags.LanguageKey) as string;
             if (!_coreConfiguration.IsWriteProtected(iniValue.PropertyName))
             {
-                selectList.AddItem(Language.GetString(languageKey), iniValue, (bool) iniValue.Value);
+                if (languageKeys.Contains(languageKey))
+                {
+                    selectList.AddItem(_greenshotLanguage[languageKey], iniValue, (bool)iniValue.Value);
+                }
+                else
+                {
+                    Log.Warn().WriteLine("Missing translation for {0}", languageKey);
+                }
             }
             if (selectList.DropDownItems.Count > 0)
             {

@@ -28,7 +28,6 @@ using System.Diagnostics;
 using System.Net;
 using Dapplo.HttpExtensions;
 using Dapplo.Log;
-using Greenshot.Addons.Core;
 
 #endregion
 
@@ -44,7 +43,7 @@ namespace Greenshot.Help
 
 		public static void LoadHelp()
 		{
-			var uri = FindOnlineHelpUrl(Language.CurrentLanguage);// ?? Language.HelpFilePath;
+            var uri = FindOnlineHelpUrl("en-US");// Language.CurrentLanguage);// ?? Language.HelpFilePath;
 			Process.Start(uri);
 		}
 
@@ -56,21 +55,21 @@ namespace Greenshot.Help
 		{
 			string ret = null;
 
-			var extHelpUrlForCurrrentIETF = ExtHelpUrl;
+			var extHelpUrlForCurrrentIetf = ExtHelpUrl;
 
 			if (!currentIetf.Equals("en-US"))
 			{
-				extHelpUrlForCurrrentIETF += currentIetf.ToLower() + "/";
+				extHelpUrlForCurrrentIetf += currentIetf.ToLower() + "/";
 			}
 
-			var httpStatusCode = GetHttpStatus(extHelpUrlForCurrrentIETF);
+			var httpStatusCode = GetHttpStatus(extHelpUrlForCurrrentIetf);
 			if (httpStatusCode == HttpStatusCode.OK)
 			{
-				ret = extHelpUrlForCurrrentIETF;
+				ret = extHelpUrlForCurrrentIetf;
 			}
-			else if (httpStatusCode != null && !extHelpUrlForCurrrentIETF.Equals(ExtHelpUrl))
+			else if (httpStatusCode != null && !extHelpUrlForCurrrentIetf.Equals(ExtHelpUrl))
 			{
-				Log.Debug().WriteLine("Localized online help not found at {0}, will try {1} as fallback", extHelpUrlForCurrrentIETF, ExtHelpUrl);
+				Log.Debug().WriteLine("Localized online help not found at {0}, will try {1} as fallback", extHelpUrlForCurrrentIetf, ExtHelpUrl);
 				httpStatusCode = GetHttpStatus(ExtHelpUrl);
 				if (httpStatusCode == HttpStatusCode.OK)
 				{
@@ -105,7 +104,7 @@ namespace Greenshot.Help
 			    var head = uri.HeadAsync().Result;
 			    return HttpStatusCode.OK;
 			}
-			catch (Exception e)
+			catch (Exception)
 			{
 			    return HttpStatusCode.NotFound;
 			}

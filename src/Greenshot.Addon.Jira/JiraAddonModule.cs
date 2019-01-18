@@ -23,8 +23,11 @@
 
 using Autofac;
 using Dapplo.Addons;
-using Dapplo.CaliburnMicro;
 using Dapplo.CaliburnMicro.Configuration;
+using Dapplo.Config.Ini;
+using Dapplo.Config.Language;
+using Greenshot.Addon.Jira.Configuration;
+using Greenshot.Addon.Jira.Configuration.Impl;
 using Greenshot.Addon.Jira.ViewModels;
 using Greenshot.Addons.Components;
 
@@ -35,6 +38,18 @@ namespace Greenshot.Addon.Jira
     {
         protected override void Load(ContainerBuilder builder)
         {
+            builder
+                .RegisterType<JiraConfigurationImpl>()
+                .As<IJiraConfiguration>()
+                .As<IIniSection>()
+                .SingleInstance();
+
+            builder
+                .RegisterType<JiraLanguageImpl>()
+                .As<IJiraLanguage>()
+                .As<ILanguage>()
+                .SingleInstance();
+
             builder
                 .RegisterType<JiraDestination>()
                 .As<IDestination>()
@@ -52,8 +67,7 @@ namespace Greenshot.Addon.Jira
                 .SingleInstance();
             builder
                 .RegisterType<JiraMonitor>()
-                .As<IUiStartup>()
-                .As<IUiShutdown>()
+                .As<IService>()
                 .AsSelf()
                 .SingleInstance();
 

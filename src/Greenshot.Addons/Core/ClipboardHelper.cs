@@ -34,16 +34,17 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-using Dapplo.Ini;
 using Dapplo.Log;
 using Dapplo.Windows.Clipboard;
 using Dapplo.Windows.Common.Structs;
 using Dapplo.Windows.Gdi32.Enums;
 using Dapplo.Windows.Gdi32.Structs;
 using Dapplo.Windows.User32;
+using Greenshot.Addons.Config.Impl;
 using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx;
 
 #endregion
@@ -100,8 +101,12 @@ EndSelection:<<<<<<<4
 		private const int BITMAPFILEHEADER_LENGTH = 14;
 		private static readonly LogSource Log = new LogSource();
 		private static readonly object ClipboardLockObject = new object();
-		private static readonly ICoreConfiguration CoreConfig = IniConfig.Current.Get<ICoreConfiguration>();
-		private static readonly string FORMAT_FILECONTENTS = "FileContents";
+
+	    /// <summary>
+        /// Set from DI via AddonsModule
+        /// </summary>
+	    internal static ICoreConfiguration CoreConfiguration { get; set; }
+        private static readonly string FORMAT_FILECONTENTS = "FileContents";
 		private static readonly string FORMAT_PNG = "PNG";
 		private static readonly string FORMAT_PNG_OFFICEART = "PNG+Office Art";
 		private static readonly string FORMAT_17 = "Format17";
@@ -190,11 +195,11 @@ EndSelection:<<<<<<<4
 					var clipboardOwner = GetClipboardOwner();
 					if (clipboardOwner != null)
 					{
-						messageText = Language.GetFormattedString("clipboard_inuse", clipboardOwner);
+                        messageText = "in use"; // Language.GetFormattedString("clipboard_inuse", clipboardOwner);
 					}
 					else
 					{
-						messageText = Language.GetString("Core","clipboard_error");
+                        messageText = "error"; // Language.GetString("Core","clipboard_error");
 					}
 					Log.Error().WriteLine(clipboardSetException, messageText);
 				}
@@ -221,13 +226,14 @@ EndSelection:<<<<<<<4
 						{
 							string messageText;
 							var clipboardOwner = GetClipboardOwner();
+                            // TODO: Translations
 							if (clipboardOwner != null)
 							{
-								messageText = Language.GetFormattedString("clipboard_inuse", clipboardOwner);
+                                messageText = "In use"; // Language.GetFormattedString("clipboard_inuse", clipboardOwner);
 							}
 							else
 							{
-								messageText = Language.GetString("Core", "clipboard_error");
+                                messageText = "Error"; // Language.GetString("Core", "clipboard_error");
 							}
 							Log.Error().WriteLine(ee, messageText);
 						}
@@ -467,7 +473,7 @@ EndSelection:<<<<<<<4
 				// TODO: add "HTML Format" support here...
 				return clipboardObject as Bitmap;
 			}
-			if (CoreConfig.EnableSpecialDIBClipboardReader)
+			if (CoreConfiguration.EnableSpecialDIBClipboardReader)
 			{
 				if (format == FORMAT_17 || format == DataFormats.Dib)
 				{
@@ -645,17 +651,17 @@ EndSelection:<<<<<<<4
 			var disposeImage = false;
 			try
 			{
-				var outputSettings = new SurfaceOutputSettings(OutputFormats.png, 100, false);
+				var outputSettings = new SurfaceOutputSettings(CoreConfiguration, OutputFormats.png, 100, false);
 				// Create the image which is going to be saved so we don't create it multiple times
 				disposeImage = ImageOutput.CreateBitmapFromSurface(surface, outputSettings, out bitmapToSave);
 				try
 				{
 					// Create PNG stream
-					if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.PNG))
+					if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.PNG))
 					{
 						pngStream = new MemoryStream();
 						// PNG works for e.g. Powerpoint
-						var pngOutputSettings = new SurfaceOutputSettings(OutputFormats.png, 100, false);
+						var pngOutputSettings = new SurfaceOutputSettings(CoreConfiguration, OutputFormats.png, 100, false);
 						ImageOutput.SaveToStream(bitmapToSave, null, pngStream, pngOutputSettings);
 						pngStream.Seek(0, SeekOrigin.Begin);
 						// Set the PNG stream
@@ -669,12 +675,12 @@ EndSelection:<<<<<<<4
 
 				try
 				{
-					if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.DIB))
+					if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.DIB))
 					{
 						using (var tmpBmpStream = new MemoryStream())
 						{
 							// Save image as BMP
-							var bmpOutputSettings = new SurfaceOutputSettings(OutputFormats.bmp, 100, false);
+							var bmpOutputSettings = new SurfaceOutputSettings(CoreConfiguration, OutputFormats.bmp, 100, false);
 							ImageOutput.SaveToStream(bitmapToSave, null, tmpBmpStream, bmpOutputSettings);
 
 							dibStream = new MemoryStream();
@@ -694,7 +700,7 @@ EndSelection:<<<<<<<4
 				// CF_DibV5
 				try
 				{
-					if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.DIBV5))
+					if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.DIBV5))
 					{
 						// Create the stream for the clipboard
 						dibV5Stream = new MemoryStream();
@@ -731,18 +737,18 @@ EndSelection:<<<<<<<4
 				}
 
 				// Set the HTML
-				if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.HTML))
+				if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.HTML))
 				{
-					var tmpFile = ImageOutput.SaveToTmpFile(surface, new SurfaceOutputSettings(OutputFormats.png, 100, false), null);
+					var tmpFile = ImageOutput.SaveToTmpFile(surface, new SurfaceOutputSettings(CoreConfiguration, OutputFormats.png, 100, false), null);
 					var html = GetHtmlString(surface, tmpFile);
 					dataObject.SetText(html, TextDataFormat.Html);
 				}
-				else if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.HTMLDATAURL))
+				else if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.HTMLDATAURL))
 				{
 					string html;
 					using (var tmpPngStream = new MemoryStream())
 					{
-						var pngOutputSettings = new SurfaceOutputSettings(OutputFormats.png, 100, false)
+						var pngOutputSettings = new SurfaceOutputSettings(CoreConfiguration, OutputFormats.png, 100, false)
 						{
 							// Do not allow to reduce the colors, some applications dislike 256 color images
 							// reported with bug #3594681
@@ -766,7 +772,7 @@ EndSelection:<<<<<<<4
 			{
 				// we need to use the SetDataOject before the streams are closed otherwise the buffer will be gone!
 				// Check if Bitmap is wanted
-				if (CoreConfig.ClipboardFormats.Contains(ClipboardFormats.BITMAP))
+				if (CoreConfiguration.ClipboardFormats.Contains(ClipboardFormats.BITMAP))
 				{
 					dataObject.SetImage(bitmapToSave);
 					// Place the DataObject to the clipboard

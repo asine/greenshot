@@ -40,8 +40,8 @@ namespace Greenshot.Components
     /// <summary>
     /// This startup action starts the MainForm
     /// </summary>
-    [ServiceOrder(GreenshotUiStartupOrder.TrayIcon)]
-    public class MainFormStartup : IUiStartup, IUiShutdown
+    [Service(nameof(MainFormStartup), nameof(FormsStartup), nameof(CaliburnServices.ConfigurationService), TaskSchedulerName = "ui")]
+    public class MainFormStartup : IStartup, IShutdown
     {
         private static readonly LogSource Log = new LogSource();
         private readonly ICoreConfiguration _coreConfiguration;
@@ -61,9 +61,10 @@ namespace Greenshot.Components
             _windowHandle = windowHandle;
         }
 
-        public void Start()
+        /// <inheritdoc />
+        public void Startup()
         {
-            Log.Debug().WriteLine("Starting MainForm");
+            Log.Debug().WriteLine($"Starting MainForm, current language {_coreConfiguration.Language}");
 
             // if language is not set, show language dialog
             if (string.IsNullOrEmpty(_coreConfiguration.Language))

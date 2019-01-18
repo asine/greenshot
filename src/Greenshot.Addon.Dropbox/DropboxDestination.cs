@@ -39,6 +39,7 @@ using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.Dropbox.Configuration;
 using Greenshot.Addon.Dropbox.Entities;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
@@ -54,7 +55,7 @@ using Newtonsoft.Json;
 namespace Greenshot.Addon.Dropbox
 {
     [Destination("Dropbox")]
-    public class DropboxDestination : AbstractDestination
+    public sealed class DropboxDestination : AbstractDestination
 	{
 	    private static readonly LogSource Log = new LogSource();
 	    private static readonly Uri DropboxApiUri = new Uri("https://api.dropbox.com");
@@ -63,23 +64,26 @@ namespace Greenshot.Addon.Dropbox
         private readonly IDropboxConfiguration _dropboxPluginConfiguration;
 	    private readonly IDropboxLanguage _dropboxLanguage;
 	    private readonly IResourceProvider _resourceProvider;
-	    private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+	    private readonly ExportNotification _exportNotification;
+	    private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
 	    private OAuth2Settings _oAuth2Settings;
 	    private IHttpBehaviour _oAuthHttpBehaviour;
 
 	    public DropboxDestination(
 	        IDropboxConfiguration dropboxPluginConfiguration,
 	        IDropboxLanguage dropboxLanguage,
-	        INetworkConfiguration networkConfiguration,
+	        IHttpConfiguration httpConfiguration,
 	        IResourceProvider resourceProvider,
 	        ICoreConfiguration coreConfiguration,
 	        IGreenshotLanguage greenshotLanguage,
-	        Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
+	        ExportNotification exportNotification,
+	        Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
         ) : base(coreConfiguration, greenshotLanguage)
         {
 	        _dropboxPluginConfiguration = dropboxPluginConfiguration;
 	        _dropboxLanguage = dropboxLanguage;
 	        _resourceProvider = resourceProvider;
+            _exportNotification = exportNotification;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
 
             _oAuth2Settings = new OAuth2Settings
@@ -91,21 +95,23 @@ namespace Greenshot.Addon.Dropbox
 	                    {"response_type", "code"},
 	                    {"client_id", "{ClientId}"},
 	                    {"redirect_uri", "{RedirectUrl}"},
+	                    // TODO: Add version?
 	                    {"state", "{State}"}
 	                }),
 	            TokenUrl = DropboxApiUri.AppendSegments("1", "oauth2", "token"),
 	            CloudServiceName = "Dropbox",
 	            ClientId = dropboxPluginConfiguration.ClientId,
 	            ClientSecret = dropboxPluginConfiguration.ClientSecret,
-	            AuthorizeMode = AuthorizeModes.LocalhostServer,
-	            RedirectUrl = "http://localhost:47336",
+	            AuthorizeMode = AuthorizeModes.OutOfBoundAuto,
+	            RedirectUrl = "https://getgreenshot.org/oauth/dropbox",
 	            Token = dropboxPluginConfiguration
             };
-	        var httpBehaviour = OAuth2HttpBehaviourFactory.Create(_oAuth2Settings);
+
+            var httpBehaviour = OAuth2HttpBehaviourFactory.Create(_oAuth2Settings);
 
 	        _oAuthHttpBehaviour = httpBehaviour;
             // Use the default network settings
-	        httpBehaviour.HttpSettings = networkConfiguration;
+	        httpBehaviour.HttpSettings = httpConfiguration;
         }
 
         public override Bitmap DisplayIcon
@@ -139,7 +145,7 @@ namespace Greenshot.Addon.Dropbox
 				    }
                 }
 			}
-			ProcessExport(exportInformation, surface);
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
 			return exportInformation;
 		}
 
@@ -152,9 +158,10 @@ namespace Greenshot.Addon.Dropbox
 	        try
 	        {
 	            var cancellationTokenSource = new CancellationTokenSource();
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("Dropbox", _dropboxLanguage.CommunicationWait, cancellationTokenSource))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(cancellationTokenSource))
 	            {
-	                ownedPleaseWaitForm.Value.Show();
+	                ownedPleaseWaitForm.Value.SetDetails("Dropbox", _dropboxLanguage.CommunicationWait);
+                    ownedPleaseWaitForm.Value.Show();
 	                try
 	                {
 	                    var filename = surfaceToUpload.GenerateFilename(CoreConfiguration, _dropboxPluginConfiguration);
@@ -191,7 +198,7 @@ namespace Greenshot.Addon.Dropbox
         /// <param name="progress">IProgress</param>
         /// <param name="cancellationToken">CancellationToken</param>
         /// <returns>Url as string</returns>
-        private async Task<string> UploadAsync(string filename, HttpContent content, IProgress<int> progress = null, CancellationToken cancellationToken = default(CancellationToken))
+        private async Task<string> UploadAsync(string filename, HttpContent content, IProgress<int> progress = null, CancellationToken cancellationToken = default)
         {
             var oAuthHttpBehaviour = _oAuthHttpBehaviour.ShallowClone();
             // Use UploadProgress

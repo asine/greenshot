@@ -32,12 +32,13 @@ namespace Greenshot.Components
     /// <summary>
     /// This startup action starts Windows.Forms
     /// </summary>
-    [ServiceOrder(GreenshotStartupOrder.Forms)]
+    [Service(nameof(FormsStartup))]
     public class FormsStartup : IStartup
     {
         private static readonly LogSource Log = new LogSource();
 
-        public void Start()
+        /// <inheritdoc />
+        public void Startup()
         {
             Log.Debug().WriteLine("Starting Windows.Forms");
 

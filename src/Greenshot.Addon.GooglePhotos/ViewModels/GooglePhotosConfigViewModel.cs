@@ -24,7 +24,8 @@
 using System.Reactive.Disposables;
 using Dapplo.CaliburnMicro.Configuration;
 using Dapplo.CaliburnMicro.Extensions;
-using Greenshot.Addons.Core;
+using Greenshot.Addon.GooglePhotos.Configuration;
+using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.ViewModels;
 
 namespace Greenshot.Addon.GooglePhotos.ViewModels
@@ -36,8 +37,20 @@ namespace Greenshot.Addon.GooglePhotos.ViewModels
         /// </summary>
         private CompositeDisposable _disposables;
 
+        /// <summary>
+        /// Configuration for the view
+        /// </summary>
         public IGooglePhotosConfiguration GooglePhotosConfiguration { get; }
+
+        /// <summary>
+        /// Translations for the view
+        /// </summary>
         public IGooglePhotosLanguage GooglePhotosLanguage { get; }
+
+        /// <summary>
+        /// FileConfigPartViewModel is used from the view
+        /// TODO: Check if this is really true and needed
+        /// </summary>
         public FileConfigPartViewModel FileConfigPartViewModel { get; }
 
         public GooglePhotosConfigViewModel(
@@ -50,6 +63,7 @@ namespace Greenshot.Addon.GooglePhotos.ViewModels
             FileConfigPartViewModel = fileConfigPartViewModel;
         }
 
+        /// <inheritdoc />
         public override void Initialize(IConfig config)
         {
             FileConfigPartViewModel.DestinationFileConfiguration = GooglePhotosConfiguration;
@@ -71,6 +85,7 @@ namespace Greenshot.Addon.GooglePhotos.ViewModels
             base.Initialize(config);
         }
 
+        /// <inheritdoc />
         protected override void OnDeactivate(bool close)
         {
             _disposables.Dispose();

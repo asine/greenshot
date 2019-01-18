@@ -28,22 +28,23 @@ using System.Text;
 using System.Windows;
 using System.Windows.Forms;
 using Autofac;
-using Autofac.Extras.CommonServiceLocator;
 using Autofac.Features.OwnedInstances;
 using Caliburn.Micro;
-using CommonServiceLocator;
 using Dapplo.Addons.Bootstrapper;
 using Dapplo.CaliburnMicro.Dapp;
-using Dapplo.Ini.Converters;
-using Dapplo.Language;
+using Dapplo.Config.Ini.Converters;
+using Dapplo.Config.Language;
 using Dapplo.Log;
+#if DEBUG
 using Dapplo.Log.Loggers;
+#endif
+using Dapplo.Utils;
+using Dapplo.Windows.Common.Structs;
+using Dapplo.Windows.Dpi.Forms;
 using Dapplo.Windows.Kernel32;
 using Greenshot.Addons;
-using Greenshot.Addons.Core;
+using Greenshot.Addons.Resources;
 using Greenshot.Ui.Misc.ViewModels;
-using Point = System.Drawing.Point;
-
 
 namespace Greenshot
 {
@@ -63,16 +64,22 @@ namespace Greenshot
             StringEncryptionTypeConverter.RgbKey = "lsjvkwhvwujkagfauguwcsjgu2wueuff";
 
             // Make sure the exceptions in the log are readable, uses Ben.Demystifier
-            LogSettings.ExceptionToStacktrace = exception => exception.ToStringDemystified();
+            //LogSettings.ExceptionToStacktrace = exception => exception.ToStringDemystified();
 #if DEBUG
             // Initialize a debug logger for Dapplo packages
             LogSettings.RegisterDefaultLogger<DebugLogger>(LogLevels.Verbose);
 #endif
-            var applicationConfig = ApplicationConfig.Create()
+            var applicationConfig = ApplicationConfigBuilder
+                .Create()
                 .WithApplicationName("Greenshot")
                 .WithMutex("F48E86D3-E34C-4DB7-8F8F-9A0EA55F0D08")
-                .WithAssemblyNames("Dapplo.Addons.Config")
-                .WithAssemblyPatterns("Greenshot.Addon*");
+                .WithCaliburnMicro()
+                .WithoutCopyOfEmbeddedAssemblies()
+#if !NETCOREAPP3_0
+                .WithoutCopyOfAssembliesToProbingPath()
+#endif
+                .WithAssemblyPatterns("Greenshot.Addon.*")
+                .BuildApplicationConfig();
 
             var application = new Dapplication(applicationConfig)
             {
@@ -89,13 +96,8 @@ namespace Greenshot
                 return -1;
             }
 
-            RegisterErrorHandlers(application);
+            //RegisterErrorHandlers(application);
 
-            application.Bootstrapper.OnContainerCreated += container =>
-                {
-                    var autofacServiceLocator = new AutofacServiceLocator(container);
-                    ServiceLocator.SetLocatorProvider(() => autofacServiceLocator);
-                };
             application.Run();
             return 0;
         }
@@ -106,6 +108,7 @@ namespace Greenshot
         /// <param name="application">Dapplication</param>
         private static void RegisterErrorHandlers(Dapplication application)
         {
+            application.ObserveUnhandledTaskException = true;
             application.OnUnhandledAppDomainException += (exception, b) => DisplayErrorViewModel(application, exception);
             application.OnUnhandledDispatcherException += exception => DisplayErrorViewModel(application, exception);
             application.OnUnhandledTaskException += exception => DisplayErrorViewModel(application, exception);
@@ -116,19 +119,30 @@ namespace Greenshot
         /// </summary>
         /// <param name="application">Dapplication</param>
         /// <param name="exception">Exception</param>
-        private static void DisplayErrorViewModel(Dapplication application, Exception exception)
+        private static async void DisplayErrorViewModel(Dapplication application, Exception exception)
         {
-            var windowManager = application.Bootstrapper.Container.Resolve<IWindowManager>();
+            var windowManager = application.Bootstrapper.Container?.Resolve<IWindowManager>();
+            if (windowManager == null)
+            {
+                Debugger.Break();
+                return;
+            }
             using (var errorViewModel = application.Bootstrapper.Container.Resolve<Owned<ErrorViewModel>>())
             {
-                if (windowManager == null || errorViewModel == null)
+                if (errorViewModel == null)
                 {
                     return;
                 }
                 errorViewModel.Value.SetExceptionToDisplay(exception);
-                windowManager.ShowDialog(errorViewModel.Value);
+                if (!UiContext.HasUiAccess)
+                {
+                    await UiContext.RunOn(() => windowManager.ShowDialog(errorViewModel.Value));
+                }
+                else
+                {
+                    windowManager.ShowDialog(errorViewModel.Value);
+                }
             }
-
         }
 
         /// <summary>
@@ -159,14 +173,16 @@ namespace Greenshot
             IGreenshotLanguage language = null;
 
             // A dirty fix to make sure the messagebox is visible as a Greenshot window on the taskbar
-            using (var multiInstanceForm = new Form
+            using (var multiInstanceForm = new DpiAwareForm
             {
-                Icon = GreenshotResources.GetGreenshotIcon(),
+
+                // TODO: Fix a problem that in this case instance is null 
+                Icon = GreenshotResources.Instance.GetGreenshotIcon(),
                 ShowInTaskbar = true,
                 MaximizeBox = false,
                 MinimizeBox = false,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                Location = new Point(int.MinValue, int.MinValue),
+                Location = new NativePoint(int.MinValue, int.MinValue),
                 Text = language.TranslationOrDefault(l => l.Error),
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
@@ -207,7 +223,7 @@ namespace Greenshot
                 {
                     Text = language.TranslationOrDefault(l => l.BugreportCancel),
                     Dock = DockStyle.Bottom,
-                    Height = 20
+                    Height = 25
                 };
                 flowLayoutPanel.Controls.Add(cancelButton);
                 multiInstanceForm.Controls.Add(flowLayoutPanel);

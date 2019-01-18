@@ -29,7 +29,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using Greenshot.Gfx;
-using Dapplo.Ini;
 using Greenshot.Addons.Core;
 
 #endregion
@@ -41,29 +40,28 @@ namespace Greenshot.Forms
 	/// </summary>
 	public sealed class ToolStripMenuSelectList : ToolStripMenuItem
 	{
-		private static readonly ICoreConfiguration CoreConfig = IniConfig.Current.Get<ICoreConfiguration>();
-		private static Image _defaultImage;
+        private static Image _defaultImage;
 		private readonly bool _multiCheckAllowed;
 		private bool _updateInProgress;
 
-		public ToolStripMenuSelectList(object identifier, bool allowMultiCheck)
+		public ToolStripMenuSelectList(ICoreConfiguration coreConfig, object identifier, bool allowMultiCheck)
 		{
 			Identifier = identifier;
 			CheckOnClick = false;
 			_multiCheckAllowed = allowMultiCheck;
-			if (_defaultImage == null || _defaultImage.Size != CoreConfig.IconSize)
+			if (_defaultImage == null || _defaultImage.Size != coreConfig.IconSize)
 			{
 				_defaultImage?.Dispose();
-				_defaultImage = BitmapFactory.CreateEmpty(CoreConfig.IconSize.Width, CoreConfig.IconSize.Height, PixelFormat.Format32bppArgb, Color.Transparent);
+				_defaultImage = BitmapFactory.CreateEmpty(coreConfig.IconSize.Width, coreConfig.IconSize.Height, PixelFormat.Format32bppArgb, Color.Transparent);
 			}
 			Image = _defaultImage;
 		}
 
-		public ToolStripMenuSelectList() : this(null, false)
+		public ToolStripMenuSelectList(ICoreConfiguration coreConfig) : this(coreConfig, null, false)
 		{
 		}
 
-		public ToolStripMenuSelectList(object identifier) : this(identifier, false)
+		public ToolStripMenuSelectList(ICoreConfiguration coreConfig, object identifier) : this(coreConfig, identifier, false)
 		{
 		}
 

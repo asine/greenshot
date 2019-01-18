@@ -24,6 +24,10 @@
 using Autofac;
 using Dapplo.Addons;
 using Dapplo.CaliburnMicro.Configuration;
+using Dapplo.Config.Ini;
+using Dapplo.Config.Language;
+using Greenshot.Addon.Confluence.Configuration;
+using Greenshot.Addon.Confluence.Configuration.Impl;
 using Greenshot.Addon.Confluence.ViewModels;
 using Greenshot.Addons.Components;
 
@@ -35,9 +39,22 @@ namespace Greenshot.Addon.Confluence
         protected override void Load(ContainerBuilder builder)
         {
             builder
+                .RegisterType<ConfluenceConfigurationImpl>()
+                .As<IConfluenceConfiguration>()
+                .As<IIniSection>()
+                .SingleInstance();
+
+            builder
+                .RegisterType<ConfluenceLanguageImpl>()
+                .As<IConfluenceLanguage>()
+                .As<ILanguage>()
+                .SingleInstance();
+
+            builder
                 .RegisterType<ConfluenceDestination>()
                 .As<IDestination>()
                 .SingleInstance();
+
             builder
                 .RegisterType<ConfluenceConfigViewModel>()
                 .As<IConfigScreen>()

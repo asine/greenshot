@@ -28,7 +28,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Dapplo.Addons;
+using Dapplo.CaliburnMicro;
 using Dapplo.Log;
+using Greenshot.Addon.ExternalCommand.Configuration;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
@@ -40,28 +42,33 @@ namespace Greenshot.Addon.ExternalCommand
     /// <summary>
     ///     Generate the external command destinations
     /// </summary>
+    [Service(nameof(ExternalCommandDestinationProvider), nameof(CaliburnServices.ConfigurationService))]
     public sealed class ExternalCommandDestinationProvider : IStartup, IDestinationProvider
 	{
 		private static readonly LogSource Log = new LogSource();
 		private readonly IExternalCommandConfiguration _externalCommandConfig;
 	    private readonly ICoreConfiguration _coreConfiguration;
 	    private readonly IGreenshotLanguage _greenshotLanguage;
+	    private readonly ExportNotification _exportNotification;
 
 	    public ExternalCommandDestinationProvider(
 	        IExternalCommandConfiguration externalCommandConfiguration,
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification)
 	    {
 	        _externalCommandConfig = externalCommandConfiguration;
 	        _coreConfiguration = coreConfiguration;
 	        _greenshotLanguage = greenshotLanguage;
+	        _exportNotification = exportNotification;
 	    }
 
-        public IEnumerable<Lazy<IDestination, DestinationAttribute>> Provide()
+	    /// <inheritdoc />
+	    public IEnumerable<Lazy<IDestination, DestinationAttribute>> Provide()
 		{
 		    return _externalCommandConfig.Commands
 		        .Select(command => _externalCommandConfig.Read(command))
-		        .Select(definition => new Lazy<IDestination, DestinationAttribute>(() => new ExternalCommandDestination(definition, _externalCommandConfig, _coreConfiguration, _greenshotLanguage), new DestinationAttribute(definition.Name)));
+		        .Select(definition => new Lazy<IDestination, DestinationAttribute>(() => new ExternalCommandDestination(definition, _externalCommandConfig, _coreConfiguration, _greenshotLanguage, _exportNotification), new DestinationAttribute(definition.Name)));
 		}
 
 
@@ -90,7 +97,7 @@ namespace Greenshot.Addon.ExternalCommand
 				return false;
 			}
 			var commandline = FilenameHelper.FillVariables(_externalCommandConfig.Commandline[command], true);
-			commandline = FilenameHelper.FillCmdVariables(commandline, true);
+			commandline = FilenameHelper.FillCmdVariables(commandline);
 
 			if (File.Exists(commandline))
 			{
@@ -100,7 +107,8 @@ namespace Greenshot.Addon.ExternalCommand
 			return false;
 		}
 
-	    public void Start()
+	    /// <inheritdoc />
+	    public void Startup()
 	    {
 	        // Check configuration & cleanup
 	        foreach (var command in _externalCommandConfig.Commands.Where(command => !IsCommandValid(command)).ToList())

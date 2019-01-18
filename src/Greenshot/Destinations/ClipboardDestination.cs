@@ -34,6 +34,8 @@ using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Extensions;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Addons.Resources;
+using Greenshot.Core.Enums;
 
 #endregion
 
@@ -45,18 +47,22 @@ namespace Greenshot.Destinations
     [Destination("Clipboard", DestinationOrder.Clipboard)]
     public class ClipboardDestination : AbstractDestination
 	{
+	    private readonly ExportNotification _exportNotification;
+
 	    public ClipboardDestination(
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage
-	        ) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification
+            ) : base(coreConfiguration, greenshotLanguage)
 	    {
+	        _exportNotification = exportNotification;
 	    }
 
 	    public override string Description => GreenshotLanguage.SettingsDestinationClipboard;
 
 	    public override Keys EditorShortcutKeys => Keys.Control | Keys.Shift | Keys.C;
 
-	    public override Bitmap DisplayIcon => GreenshotResources.GetBitmap("Clipboard.Image");
+	    public override Bitmap DisplayIcon => GreenshotResources.Instance.GetBitmap("Clipboard.Image");
 
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 	    {
@@ -77,22 +83,22 @@ namespace Greenshot.Destinations
 				        switch (clipboardFormat)
 				        {
                             case ClipboardFormats.DIB:
-                                clipboardAccessToken.SetAsDeviceIndependendBitmap(surface);
+                                clipboardAccessToken.SetAsDeviceIndependendBitmap(surface, CoreConfiguration);
                                 break;
 				            case ClipboardFormats.DIBV5:
-				                clipboardAccessToken.SetAsFormat17(surface);
+				                clipboardAccessToken.SetAsFormat17(surface, CoreConfiguration);
 				                break;
 				            case ClipboardFormats.PNG:
-				                clipboardAccessToken.SetAsBitmap(surface, new SurfaceOutputSettings(OutputFormats.png));
+				                clipboardAccessToken.SetAsBitmap(surface, new SurfaceOutputSettings(CoreConfiguration, OutputFormats.png));
 				                break;
 				            case ClipboardFormats.BITMAP:
-				                clipboardAccessToken.SetAsBitmap(surface, new SurfaceOutputSettings(OutputFormats.bmp));
+				                clipboardAccessToken.SetAsBitmap(surface, new SurfaceOutputSettings(CoreConfiguration, OutputFormats.bmp));
 				                break;
 				            case ClipboardFormats.HTML:
-				                clipboardAccessToken.SetAsHtml(surface);
+				                clipboardAccessToken.SetAsHtml(surface, CoreConfiguration);
 				                break;
 				            case ClipboardFormats.HTMLDATAURL:
-				                clipboardAccessToken.SetAsEmbeddedHtml(surface);
+				                clipboardAccessToken.SetAsEmbeddedHtml(surface, CoreConfiguration);
 				                break;
 				        }
                     }
@@ -104,8 +110,8 @@ namespace Greenshot.Destinations
 				// TODO: Change to general logic in ProcessExport
 				surface.SendMessageEvent(this, SurfaceMessageTyp.Error, "Error"); //GreenshotLanguage.editorclipboardfailed);
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+	        _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 	}
 }

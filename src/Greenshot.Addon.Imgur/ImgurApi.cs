@@ -37,6 +37,7 @@ using Dapplo.HttpExtensions.JsonNet;
 using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
+using Greenshot.Addon.Imgur.Configuration;
 using Greenshot.Addon.Imgur.Entities;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Extensions;
@@ -61,7 +62,7 @@ namespace Greenshot.Addon.Imgur
 		public ImgurApi(
             IImgurConfiguration imgurConfiguration,
             ICoreConfiguration coreConfiguration,
-            INetworkConfiguration networkConfiguration)
+            IHttpConfiguration httpConfiguration)
 		{
 			_imgurConfiguration = imgurConfiguration;
 		    _coreConfiguration = coreConfiguration;
@@ -74,20 +75,21 @@ namespace Greenshot.Addon.Imgur
 		                {"response_type", "code"},
 		                {"client_id", "{ClientId}"},
 		                {"redirect_uri", "{RedirectUrl}"},
+                        // TODO: Add version?
 		                {"state", "{State}"}
 		            }),
 		        TokenUrl = new Uri("https://api.imgur.com/oauth2/token"),
 		        CloudServiceName = "Imgur",
 		        ClientId = imgurConfiguration.ClientId,
 		        ClientSecret = imgurConfiguration.ClientSecret,
-		        RedirectUrl = "http://getgreenshot.org",
-		        AuthorizeMode = AuthorizeModes.EmbeddedBrowser,
+		        RedirectUrl = "https://getgreenshot.org/oauth/imgur",
+		        AuthorizeMode = AuthorizeModes.OutOfBoundAuto,
 		        Token = imgurConfiguration
             };
 
 		    Behaviour = new HttpBehaviour
 		    {
-                HttpSettings = networkConfiguration,
+                HttpSettings = httpConfiguration,
                 JsonSerializer = new JsonNetJsonSerializer(),
 		        OnHttpClientCreated = httpClient =>
 		        {

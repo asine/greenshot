@@ -37,6 +37,7 @@ using Dapplo.HttpExtensions.Extensions;
 using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
+using Greenshot.Addon.Photobucket.Configuration;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
@@ -59,8 +60,9 @@ namespace Greenshot.Addon.Photobucket
         private readonly string _albumPath;
 		private readonly IPhotobucketConfiguration _photobucketConfiguration;
 	    private readonly IPhotobucketLanguage _photobucketLanguage;
-	    private readonly INetworkConfiguration _networkConfiguration;
+	    private readonly IHttpConfiguration _httpConfiguration;
 	    private readonly IResourceProvider _resourceProvider;
+	    private readonly ExportNotification _exportNotification;
 	    private readonly OAuth1Settings _oAuthSettings;
 	    private readonly OAuth1HttpBehaviour _oAuthHttpBehaviour;
 	    private IList<string> _albumsCache;
@@ -68,18 +70,20 @@ namespace Greenshot.Addon.Photobucket
         public PhotobucketDestination(
             IPhotobucketConfiguration photobucketConfiguration,
             IPhotobucketLanguage photobucketLanguage,
-            INetworkConfiguration networkConfiguration,
+            IHttpConfiguration httpConfiguration,
             IResourceProvider resourceProvider,
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage
-	    ) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification
+        ) : base(coreConfiguration, greenshotLanguage)
         {
 	        _photobucketConfiguration = photobucketConfiguration;
 	        _photobucketLanguage = photobucketLanguage;
-	        _networkConfiguration = networkConfiguration;
+	        _httpConfiguration = httpConfiguration;
 	        _resourceProvider = resourceProvider;
+            _exportNotification = exportNotification;
 
-	        _oAuthSettings = new OAuth1Settings
+            _oAuthSettings = new OAuth1Settings
             {
                 Token = photobucketConfiguration,
                 ClientId = photobucketConfiguration.ClientId,
@@ -102,7 +106,7 @@ namespace Greenshot.Addon.Photobucket
                 CheckVerifier = false
             };
             var oAuthHttpBehaviour = OAuth1HttpBehaviourFactory.Create(_oAuthSettings);
-            oAuthHttpBehaviour.HttpSettings = networkConfiguration;
+            oAuthHttpBehaviour.HttpSettings = httpConfiguration;
             // Store the leftover values
             oAuthHttpBehaviour.OnAccessTokenValues = values =>
             {
@@ -141,11 +145,12 @@ namespace Greenshot.Addon.Photobucket
 	    protected PhotobucketDestination(
 	        IPhotobucketConfiguration photobucketConfiguration,
 	        IPhotobucketLanguage photobucketLanguage,
-	        INetworkConfiguration networkConfiguration,
+	        IHttpConfiguration httpConfiguration,
 	        IResourceProvider resourceProvider,
 	        string albumPath,
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage) : this(photobucketConfiguration, photobucketLanguage, networkConfiguration, resourceProvider, coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification) : this(photobucketConfiguration, photobucketLanguage, httpConfiguration, resourceProvider, coreConfiguration, greenshotLanguage, exportNotification)
 		{
 			_photobucketConfiguration = photobucketConfiguration;
 			_albumPath = albumPath;
@@ -182,13 +187,12 @@ namespace Greenshot.Addon.Photobucket
 			IList<string> albums = null;
 			try
 			{
-				albums = RetrievePhotobucketAlbums().Result;
+				albums = Task.Run(RetrievePhotobucketAlbums).Result;
 			    _albumsCache = albums;
-
 			}
-			catch
+			catch (Exception ex)
 			{
-				// ignored
+                Log.Error().WriteLine(ex, "Couldn't retrieve the photobucket albums.");
 			}
 
 			if (albums == null || albums.Count == 0)
@@ -200,11 +204,13 @@ namespace Greenshot.Addon.Photobucket
 				yield return new PhotobucketDestination(
 				    _photobucketConfiguration,
 				    _photobucketLanguage,
-				    _networkConfiguration,
+				    _httpConfiguration,
 				    _resourceProvider,
 				    album,
 				    CoreConfiguration,
-				    GreenshotLanguage);
+				    GreenshotLanguage,
+                    _exportNotification
+				    );
 			}
 		}
 
@@ -224,8 +230,8 @@ namespace Greenshot.Addon.Photobucket
 				exportInformation.ExportMade = true;
 				exportInformation.Uri = uploaded.Original;
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 
 

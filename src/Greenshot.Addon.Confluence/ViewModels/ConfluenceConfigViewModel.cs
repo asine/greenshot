@@ -25,10 +25,11 @@ using System.Collections.Generic;
 using System.Reactive.Disposables;
 using Dapplo.CaliburnMicro.Configuration;
 using Dapplo.CaliburnMicro.Extensions;
+using Greenshot.Addon.Confluence.Configuration;
 using Greenshot.Addons;
-using Greenshot.Addons.Core;
 using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Extensions;
+using Greenshot.Core.Enums;
 
 namespace Greenshot.Addon.Confluence.ViewModels
 {

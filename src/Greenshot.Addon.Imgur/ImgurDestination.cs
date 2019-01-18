@@ -33,6 +33,7 @@ using Dapplo.Addons;
 using Dapplo.Log;
 using Dapplo.Windows.Clipboard;
 using Dapplo.Windows.Extensions;
+using Greenshot.Addon.Imgur.Configuration;
 using Greenshot.Addon.Imgur.Entities;
 using Greenshot.Addon.Imgur.ViewModels;
 using Greenshot.Addons;
@@ -54,28 +55,34 @@ namespace Greenshot.Addon.Imgur
     public class ImgurDestination : AbstractDestination
 	{
 	    private static readonly LogSource Log = new LogSource();
-        private readonly IImgurConfiguration _imgurConfiguration;
+	    private readonly ExportNotification _exportNotification;
+	    private readonly IImgurConfiguration _imgurConfiguration;
 	    private readonly IImgurLanguage _imgurLanguage;
 	    private readonly ImgurApi _imgurApi;
 	    private readonly ImgurHistoryViewModel _imgurHistoryViewModel;
-	    private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+	    private readonly ImgurConfigViewModel _imgurConfigViewModel;
+	    private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
 	    private readonly IResourceProvider _resourceProvider;
 
 		public ImgurDestination(
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification,
 		    IImgurConfiguration imgurConfiguration,
 	        IImgurLanguage imgurLanguage,
 	        ImgurApi imgurApi,
 	        ImgurHistoryViewModel imgurHistoryViewModel,
-            Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
+            ImgurConfigViewModel imgurConfigViewModel,
+            Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory,
             IResourceProvider resourceProvider) : base(coreConfiguration, greenshotLanguage)
-		{
-			_imgurConfiguration = imgurConfiguration;
+        {
+            _exportNotification = exportNotification;
+            _imgurConfiguration = imgurConfiguration;
 		    _imgurLanguage = imgurLanguage;
 		    _imgurApi = imgurApi;
 		    _imgurHistoryViewModel = imgurHistoryViewModel;
-		    _pleaseWaitFormFactory = pleaseWaitFormFactory;
+            _imgurConfigViewModel = imgurConfigViewModel;
+            _pleaseWaitFormFactory = pleaseWaitFormFactory;
 		    _resourceProvider = resourceProvider;
 		}
 
@@ -102,8 +109,8 @@ namespace Greenshot.Addon.Imgur
 		        ExportMade = uploadUrl != null,
 		        Uri = uploadUrl?.AbsoluteUri
 		    };
-		    ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface, _imgurConfigViewModel);
+            return exportInformation;
 		}
 
         /// <summary>
@@ -120,8 +127,9 @@ namespace Greenshot.Addon.Imgur
 
                 var cancellationTokenSource = new CancellationTokenSource();
                 // TODO: Replace the form
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("Imgur", _imgurLanguage.CommunicationWait, cancellationTokenSource))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(cancellationTokenSource))
                 {
+                    ownedPleaseWaitForm.Value.SetDetails("Imgur", _imgurLanguage.CommunicationWait);
                     ownedPleaseWaitForm.Value.Show();
                     try
                     {

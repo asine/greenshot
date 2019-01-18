@@ -30,12 +30,13 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
 using Dapplo.Log;
+using Greenshot.Addon.OCR.Configuration;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Core;
-using Greenshot.Addons.Core.Enums;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Core.Enums;
 using Greenshot.Gfx.Effects;
 
 #endregion
@@ -51,15 +52,16 @@ namespace Greenshot.Addon.OCR
 	    private static readonly LogSource Log = new LogSource();
 	    private const int MinWidth = 130;
 	    private const int MinHeight = 130;
-        private readonly IOCRConfiguration _ocrConfiguration;
+        private readonly IOcrConfiguration _ocrConfiguration;
 	    private readonly string _ocrCommand;
 
         public OcrDestination(
-            IOCRConfiguration ocrConfiguration,
+            IOcrConfiguration ocrConfiguration,
             ICoreConfiguration coreConfiguration,
-            IGreenshotLanguage greenshotLanguage
+            IGreenshotLanguage greenshotLanguage,
+            ExportNotification exportNotification
             ) : base(coreConfiguration, greenshotLanguage)
-		{
+        {
 			_ocrConfiguration = ocrConfiguration;
 
 		    var ocrDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -104,7 +106,7 @@ namespace Greenshot.Addon.OCR
         /// <param name="surface">Has the Image and the capture details</param>
         public string DoOcr(ISurface surface)
         {
-            var outputSettings = new SurfaceOutputSettings(OutputFormats.bmp, 0, true)
+            var outputSettings = new SurfaceOutputSettings(CoreConfiguration, OutputFormats.bmp, 0, true)
             {
                 ReduceColors = true,
                 SaveBackgroundOnly = true

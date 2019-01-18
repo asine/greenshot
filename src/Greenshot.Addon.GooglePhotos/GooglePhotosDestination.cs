@@ -39,6 +39,7 @@ using Dapplo.HttpExtensions.OAuth;
 using Dapplo.Log;
 using Dapplo.Utils;
 using Dapplo.Windows.Clipboard;
+using Greenshot.Addon.GooglePhotos.Configuration;
 using Greenshot.Addons;
 using Greenshot.Addons.Components;
 using Greenshot.Addons.Controls;
@@ -52,30 +53,33 @@ using Greenshot.Gfx;
 namespace Greenshot.Addon.GooglePhotos
 {
     [Destination("GooglePhotos")]
-    public class GooglePhotosDestination : AbstractDestination
+    public sealed class GooglePhotosDestination : AbstractDestination
 	{
 	    private static readonly LogSource Log = new LogSource();
         private readonly IGooglePhotosConfiguration _googlePhotosConfiguration;
 	    private readonly IGooglePhotosLanguage _googlePhotosLanguage;
-	    private readonly INetworkConfiguration _networkConfiguration;
+	    private readonly IHttpConfiguration _httpConfiguration;
 	    private readonly IResourceProvider _resourceProvider;
-	    private readonly Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
+	    private readonly ExportNotification _exportNotification;
+	    private readonly Func<CancellationTokenSource, Owned<PleaseWaitForm>> _pleaseWaitFormFactory;
 	    private readonly OAuth2Settings _oAuth2Settings;
 
         public GooglePhotosDestination(
 	        IGooglePhotosConfiguration googlePhotosConfiguration,
 	        IGooglePhotosLanguage googlePhotosLanguage,
-	        INetworkConfiguration networkConfiguration,
+	        IHttpConfiguration httpConfiguration,
 	        IResourceProvider resourceProvider,
             ICoreConfiguration coreConfiguration,
             IGreenshotLanguage greenshotLanguage,
-	        Func<string, string, CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
+	        ExportNotification exportNotification,
+	        Func<CancellationTokenSource, Owned<PleaseWaitForm>> pleaseWaitFormFactory
             ) : base(coreConfiguration, greenshotLanguage)
         {
 	        _googlePhotosConfiguration = googlePhotosConfiguration;
 	        _googlePhotosLanguage = googlePhotosLanguage;
-	        _networkConfiguration = networkConfiguration;
+	        _httpConfiguration = httpConfiguration;
 	        _resourceProvider = resourceProvider;
+            _exportNotification = exportNotification;
             _pleaseWaitFormFactory = pleaseWaitFormFactory;
 
             _oAuth2Settings = new OAuth2Settings
@@ -116,27 +120,28 @@ namespace Greenshot.Addon.GooglePhotos
 	    public override async Task<ExportInformation> ExportCaptureAsync(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
 			var exportInformation = new ExportInformation(Designation, Description);
-		    var uploadUrl = await Upload(captureDetails, surface).ConfigureAwait(true);
+		    var uploadUrl = await Upload(surface).ConfigureAwait(true);
 			if (uploadUrl != null)
 			{
 				exportInformation.ExportMade = true;
 				exportInformation.Uri = uploadUrl;
 			}
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 
-	    private async Task<string> Upload(ICaptureDetails captureDetails, ISurface surfaceToUpload)
+	    private async Task<string> Upload(ISurface surfaceToUpload)
 	    {
 	        try
             {
                 string url;
-                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory("GooglePhotos", _googlePhotosLanguage.CommunicationWait, default))
+                using (var ownedPleaseWaitForm = _pleaseWaitFormFactory(default))
 	            {
-	                ownedPleaseWaitForm.Value.Show();
+	                ownedPleaseWaitForm.Value.SetDetails("GooglePhotos", _googlePhotosLanguage.CommunicationWait);
+                    ownedPleaseWaitForm.Value.Show();
 	                try
 	                {
-	                    url = await UploadToPicasa(surfaceToUpload).ConfigureAwait(true);
+	                    url = await UploadToGooglePhotos(surfaceToUpload).ConfigureAwait(true);
 	                }
 	                finally
 	                {
@@ -169,16 +174,16 @@ namespace Greenshot.Addon.GooglePhotos
         /// <param name="progress"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        private async Task<string> UploadToPicasa(ISurface surface, IProgress<int> progress = null, CancellationToken token = default)
+        private async Task<string> UploadToGooglePhotos(ISurface surface, IProgress<int> progress = null, CancellationToken token = default)
         {
             string filename = surface.GenerateFilename(CoreConfiguration, _googlePhotosConfiguration);
             
             var oAuthHttpBehaviour = HttpBehaviour.Current.ShallowClone();
-            oAuthHttpBehaviour.HttpSettings = _networkConfiguration;
+            oAuthHttpBehaviour.HttpSettings = _httpConfiguration;
             // Use UploadProgress
             if (progress != null)
             {
-                oAuthHttpBehaviour.UploadProgress = percent => { UiContext.RunOn(() => progress.Report((int)(percent * 100))); };
+                oAuthHttpBehaviour.UploadProgress = percent => { UiContext.RunOn(() => progress.Report((int)(percent * 100)), token); };
             }
             oAuthHttpBehaviour.OnHttpMessageHandlerCreated = httpMessageHandler => new OAuth2HttpMessageHandler(_oAuth2Settings, oAuthHttpBehaviour, httpMessageHandler);
             if (_googlePhotosConfiguration.AddFilename)

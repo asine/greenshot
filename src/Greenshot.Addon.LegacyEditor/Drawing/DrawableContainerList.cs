@@ -21,7 +21,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
@@ -29,11 +28,11 @@ using System.Threading;
 using System.Windows.Forms;
 using Dapplo.Windows.Common.Extensions;
 using Dapplo.Windows.Common.Structs;
-using Greenshot.Addon.LegacyEditor.Forms;
 using Greenshot.Addon.LegacyEditor.Memento;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Drawing;
+using Greenshot.Addons.Resources;
 
 namespace Greenshot.Addon.LegacyEditor.Drawing {
 	/// <summary>
@@ -42,8 +41,6 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 	[Serializable]
 	public class DrawableContainerList : List<IDrawableContainer>, IDrawableContainerList
 	{
-		private static readonly ComponentResourceManager EditorFormResources = new ComponentResourceManager(typeof(ImageEditorForm));
-
 		public Guid ParentID {
 			get;
 			private set;
@@ -468,7 +465,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 			// Copy
 			item = new ToolStripMenuItem(editorLanguage.EditorCopytoclipboard)
 			{
-				Image = (Image) EditorFormResources.GetObject("copyToolStripMenuItem.Image")
+				Image = GreenshotResources.Instance.GetBitmap("copyToolStripMenuItem.Image", GetType())
 			};
 			item.Click += (sender, args) => ClipboardHelper.SetClipboardData(typeof(IDrawableContainerList), this);
 			menu.Items.Add(item);
@@ -476,7 +473,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 			// Cut
 			item = new ToolStripMenuItem(editorLanguage.EditorCuttoclipboard)
 			{
-				Image = (Image) EditorFormResources.GetObject("btnCut.Image")
+				Image = GreenshotResources.Instance.GetBitmap("btnCut.Image", GetType())
 			};
 			item.Click += (sender, args) =>
 			{
@@ -488,7 +485,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 			// Delete
 		    item = new ToolStripMenuItem(editorLanguage.EditorDeleteelement)
 		    {
-		        Image = (Image) EditorFormResources.GetObject("removeObjectToolStripMenuItem.Image")
+		        Image = GreenshotResources.Instance.GetBitmap("removeObjectToolStripMenuItem.Image", GetType())
 		    };
 		    item.Click += (sender, args) => surface.RemoveElements(this);
 			menu.Items.Add(item);
@@ -522,7 +519,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 		                continue;
 		            }
 
-		            Size defaultSize = container.DefaultSize;
+                    var defaultSize = container.DefaultSize;
 		            container.MakeBoundsChangeUndoable(false);
 		            container.Width = defaultSize.Width;
 		            container.Height = defaultSize.Height;

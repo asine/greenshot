@@ -44,18 +44,19 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 		private NativeRect myBounds = NativeRect.Empty;
 		private NativePoint lastMouse = NativePoint.Empty;
 		private readonly List<NativePointFloat> capturePoints = new List<NativePointFloat>();
-		[NonSerialized] private GraphicsPath freehandPath = new GraphicsPath();
+        [NonSerialized]
+        private GraphicsPath freehandPath = new GraphicsPath();
 		private bool isRecalculated;
 		
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FreehandContainer(Surface parent) : base(parent) {
+		public FreehandContainer(Surface parent, IEditorConfiguration editorConfiguration) : base(parent, editorConfiguration) {
 			Width = parent.Width;
 			Height = parent.Height;
 			Top = 0;
 			Left = 0;
-		}
+        }
 
 		protected override void InitializeFields() {
 			AddField(GetType(), FieldTypes.LINE_THICKNESS, 3);
@@ -105,10 +106,10 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 		public override bool HandleMouseMove(int mouseX, int mouseY) {
 			NativePoint previousPoint = capturePoints[capturePoints.Count-1];
 
-			if (GeometryHelper.Distance2D(previousPoint.X, previousPoint.Y, mouseX, mouseY) >= 2*EditorConfig.FreehandSensitivity) {
+			if (GeometryHelper.Distance2D(previousPoint.X, previousPoint.Y, mouseX, mouseY) >= 2* _editorConfiguration.FreehandSensitivity) {
 				capturePoints.Add(new NativePoint(mouseX, mouseY));
 			}
-		    if (GeometryHelper.Distance2D(lastMouse.X, lastMouse.Y, mouseX, mouseY) < EditorConfig.FreehandSensitivity)
+		    if (GeometryHelper.Distance2D(lastMouse.X, lastMouse.Y, mouseX, mouseY) < _editorConfiguration.FreehandSensitivity)
 		    {
 		        return true;
 		    }
@@ -131,7 +132,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 		/// </summary>
 		public override void HandleMouseUp(int mouseX, int mouseY) {
 			// Make sure we don't loose the ending point
-			if (GeometryHelper.Distance2D(lastMouse.X, lastMouse.Y, mouseX, mouseY) >= EditorConfig.FreehandSensitivity) {
+			if (GeometryHelper.Distance2D(lastMouse.X, lastMouse.Y, mouseX, mouseY) >= _editorConfiguration.FreehandSensitivity) {
 				capturePoints.Add(new NativePoint(mouseX, mouseY));
 			}
 			RecalculatePath();
@@ -184,7 +185,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 			graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 			
 			int lineThickness = GetFieldValueAsInt(FieldTypes.LINE_THICKNESS);
-			Color lineColor = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
+			var lineColor = GetFieldValueAsColor(FieldTypes.LINE_COLOR);
 			using (var pen = new Pen(lineColor)) {
 				pen.Width = lineThickness;
 			    if (!(pen.Width > 0))
@@ -199,7 +200,7 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
 			    graphics.TranslateTransform(Left, Top);
 			    lock (_freehandPathLock)
 			    {
-			        if (isRecalculated && Selected && renderMode == RenderMode.EDIT)
+			        if (isRecalculated && Selected && renderMode == RenderMode.Edit)
 			        {
 			            DrawSelectionBorder(graphics, pen, freehandPath);
 			        }
@@ -257,8 +258,8 @@ namespace Greenshot.Addon.LegacyEditor.Drawing {
             {
                 return false;
             }
-            var other = obj as FreehandContainer;
-            if (other != null && Equals(freehandPath, other.freehandPath)) {
+
+            if (obj is FreehandContainer other && Equals(freehandPath, other.freehandPath)) {
                 ret = true;
             }
             return ret;

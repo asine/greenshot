@@ -34,6 +34,7 @@ using Greenshot.Addons.Controls;
 using Greenshot.Addons.Core;
 using Greenshot.Addons.Interfaces;
 using Greenshot.Addons.Interfaces.Plugin;
+using Greenshot.Addons.Resources;
 
 #endregion
 
@@ -45,19 +46,22 @@ namespace Greenshot.Destinations
     [Destination("FileNoDialog", DestinationOrder.FileNoDialog)]
     public class FileDestination : AbstractDestination
 	{
-		private static readonly LogSource Log = new LogSource();
+	    private readonly ExportNotification _exportNotification;
+	    private static readonly LogSource Log = new LogSource();
 
 	    public FileDestination(
 	        ICoreConfiguration coreConfiguration,
-	        IGreenshotLanguage greenshotLanguage) : base(coreConfiguration, greenshotLanguage)
+	        IGreenshotLanguage greenshotLanguage,
+	        ExportNotification exportNotification) : base(coreConfiguration, greenshotLanguage)
 	    {
+	        _exportNotification = exportNotification;
 	    }
 
 	    public override string Description => GreenshotLanguage.QuicksettingsDestinationFile;
 
 		public override Keys EditorShortcutKeys => Keys.Control | Keys.S;
 
-		public override Bitmap DisplayIcon => GreenshotResources.GetBitmap("Save.Image");
+		public override Bitmap DisplayIcon => GreenshotResources.Instance.GetBitmap("Save.Image");
 
 	    protected override ExportInformation ExportCapture(bool manuallyInitiated, ISurface surface, ICaptureDetails captureDetails)
 		{
@@ -66,7 +70,7 @@ namespace Greenshot.Destinations
 			bool overwrite;
 			string fullPath;
 			// Get output settings from the configuration
-			var outputSettings = new SurfaceOutputSettings();
+			var outputSettings = new SurfaceOutputSettings(CoreConfiguration);
 
 			if (captureDetails?.Filename != null)
 			{
@@ -124,8 +128,8 @@ namespace Greenshot.Destinations
 			    CoreConfiguration.OutputFileAsFullpath = fullPath;
 			}
 
-			ProcessExport(exportInformation, surface);
-			return exportInformation;
+		    _exportNotification.NotifyOfExport(this, exportInformation, surface);
+            return exportInformation;
 		}
 
 		private string CreateNewFilename(ICaptureDetails captureDetails)

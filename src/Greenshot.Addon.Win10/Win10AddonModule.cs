@@ -21,6 +21,7 @@
 
 using Autofac;
 using Dapplo.Addons;
+using Greenshot.Addons.Interfaces;
 using Dapplo.Windows.Common;
 using Greenshot.Addons.Components;
 
@@ -29,14 +30,23 @@ namespace Greenshot.Addon.Win10
     /// <inheritdoc />
     public class Win10AddonModule : AddonModule
     {
+        /// <inheritdoc />
         protected override void Load(ContainerBuilder builder)
         {
-            if (!WindowsVersion.IsWindows10OrLater)
+            if (WindowsVersion.IsWindows10OrLater)
             {
                 builder
                     .RegisterType<Win10OcrDestination>()
                     .As<IDestination>()
                     .SingleInstance();
+
+#if !NETCOREAPP3_0
+                builder
+                    .RegisterType<Win10FormEnhancer>()
+                    .As<IFormEnhancer>()
+                    .SingleInstance();
+#endif
+
                 builder
                     .RegisterType<Win10ShareDestination>()
                     .As<IDestination>()
